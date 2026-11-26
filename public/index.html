@@ -175,19 +175,20 @@
   .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; }
   .back-link:hover { color: var(--text); }
   .back-link svg { transform: rotate(180deg); }
-  .session-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
-  .session-aside { position: sticky; top: 84px; display: grid; gap: 24px; max-height: calc(100vh - 104px); overflow-y: auto; padding-bottom: 8px; }
+  .content.is-session { display: flex; flex-direction: column; height: calc(100vh - 60px); padding-bottom: 24px; }
+  .session-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 28px; }
+  .session-aside { display: flex; flex-direction: column; gap: 24px; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
   .session-aside .section { margin: 0; }
   .session-aside dl.props { grid-template-columns: 104px minmax(0, 1fr); }
-  .chat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); min-width: 0; }
-  .chat-toolbar { position: sticky; top: 60px; z-index: 4; display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); border-radius: 14px 14px 0 0; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 13px; color: var(--text-2); }
+  .chat-card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+  .chat-toolbar { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); border-radius: 14px 14px 0 0; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 13px; color: var(--text-2); }
   .chat-toolbar strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
   .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; white-space: nowrap; }
   .switch input { appearance: none; -webkit-appearance: none; position: relative; width: 30px; height: 18px; margin: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .15s; }
   .switch input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform .15s; }
   .switch input:checked { background: var(--accent); }
   .switch input:checked::after { transform: translateX(12px); }
-  .chat { display: flex; flex-direction: column; gap: 22px; padding: 24px 22px 28px; }
+  .chat { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 22px; padding: 24px 22px 28px; }
   .day { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; color: var(--text-3); }
   .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .msg-user { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -222,7 +223,8 @@
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
   .compact-note > summary { padding: 10px 14px; cursor: pointer; font-weight: 550; }
   .compact-note .md { padding: 0 14px 12px; }
-  .jump { position: fixed; right: 28px; bottom: 28px; z-index: 20; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); }
+  .jump[hidden] { display: none; }
+  .jump { position: absolute; right: 18px; bottom: 18px; z-index: 5; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); }
   .jump svg { transform: rotate(90deg); }
 
   /* Markdown */
@@ -290,7 +292,10 @@
     .thead, .row { grid-template-columns: minmax(0, 1fr) 140px 90px 130px; }
     .c-mcp { display: none; }
     .session-layout { grid-template-columns: minmax(0, 1fr); }
-    .session-aside { position: static; max-height: none; order: -1; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .content.is-session { display: block; height: auto; padding-bottom: 48px; }
+    .session-layout { grid-template-rows: auto; }
+    .session-aside { order: -1; overflow: visible; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .chat-card { height: 75vh; min-height: 420px; }
   }
   @media (max-width: 920px) {
     .shell { grid-template-columns: minmax(0, 1fr); }
@@ -319,7 +324,7 @@
     .chat-toolbar { flex-wrap: wrap; padding: 10px 14px; }
     .bubble { max-width: 92%; }
     .msg-claude { gap: 10px; }
-    .jump { right: 16px; bottom: 16px; }
+    .jump { right: 12px; bottom: 12px; }
   }
 </style>
 </head>
@@ -634,7 +639,10 @@
 
   function renderContent() {
     const focusedKey = content.contains(document.activeElement) ? document.activeElement.dataset.key : null;
-    content.innerHTML = state.sessionId && !state.sessionsError ? renderSession() : state.projectId ? renderProject() : renderOverview();
+    const sessionPage = Boolean(state.sessionId && !state.sessionsError);
+    content.classList.toggle('is-session', sessionPage);
+    content.innerHTML = sessionPage ? renderSession() : state.projectId ? renderProject() : renderOverview();
+    updateJump();
     if (focusedKey) {
       [...content.querySelectorAll('[data-nav]')].find((el) => el.dataset.key === focusedKey)?.focus({ preventScroll: true });
     }
@@ -843,22 +851,33 @@
         <div class="s-meta"><span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>${branchChip(s)}${s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : ''}${s.prs.map(prChip).join('')}</div>
       </div>
       <div class="session-layout">
-        <section class="chat-card" aria-label="Conversation">${renderChat()}</section>
+        <section class="chat-card" aria-label="Conversation">${renderChat()}<button class="jump" type="button" data-action="latest" hidden>${icon('arrow', 14)} Latest</button></section>
         <aside class="session-aside" aria-label="Session details">${sessionInfo(s)}</aside>
-      </div>
-      <button class="jump" type="button" data-action="latest">${icon('arrow', 14)} Latest</button>`;
+      </div>`;
+  }
+
+  const chatBox = () => content.querySelector('.chat');
+  const nearBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+
+  function updateJump() {
+    const chat = chatBox();
+    const jump = content.querySelector('.jump');
+    if (jump) jump.hidden = !chat || nearBottom(chat);
   }
 
   function renderSessionPreservingView() {
-    const nearBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 160;
-    const scrollTop = main.scrollTop;
+    const before = chatBox();
+    const wasAtBottom = before ? nearBottom(before) : false;
+    const scrollTop = before?.scrollTop ?? 0;
     const open = [...content.querySelectorAll('details.tool[open]')].map((el) => el.dataset.tool);
     renderContent();
     for (const id of open) {
       const details = content.querySelector(`details.tool[data-tool="${CSS.escape(id)}"]`);
       if (details) { fillTool(details); details.open = true; }
     }
-    main.scrollTop = nearBottom ? main.scrollHeight : scrollTop;
+    const chat = chatBox();
+    if (chat) chat.scrollTop = wasAtBottom ? chat.scrollHeight : scrollTop;
+    updateJump();
   }
 
   function render() {
@@ -1015,7 +1034,7 @@
     }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'retry') return refresh();
-    if (action === 'latest') return main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+    if (action === 'latest') return chatBox()?.scrollTo({ top: chatBox().scrollHeight, behavior: 'smooth' });
     if (action === 'clear') {
       search.value = '';
       state.filter = 'all';
@@ -1032,12 +1051,14 @@
   }
 
   content.addEventListener('click', handleClick);
+  content.addEventListener('scroll', (event) => event.target.classList?.contains('chat') && updateJump(), true);
   content.addEventListener('toggle', (event) => event.target.matches?.('details.tool') && event.target.open && fillTool(event.target), true);
   content.addEventListener('change', (event) => {
     if (event.target.id !== 'tools-toggle') return;
     state.showTools = event.target.checked;
     try { localStorage.setItem('showTools', String(state.showTools)); } catch {}
     content.querySelector('.chat')?.classList.toggle('hide-tools', !state.showTools);
+    updateJump();
   });
   $('backdrop').addEventListener('click', () => document.body.classList.remove('nav-open'));
   $('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
