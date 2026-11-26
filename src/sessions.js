@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
+const MCP_TOOL = /^mcp__(.+?)__/;
+
 export function projectsRoot(env = process.env) {
   return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
 }
@@ -17,6 +19,7 @@ export async function parseSession(file) {
   let isWorktree = false;
   let lastTimestamp = 0;
   const prs = new Map();
+  const mcps = new Set();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -45,6 +48,14 @@ export async function parseSession(file) {
     if (event.attachment?.type === 'environment') {
       isWorktree = event.attachment.snapshot?.isWorktree === true;
     }
+    if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+      for (const block of event.message.content) {
+        const match = block?.type === 'tool_use' && MCP_TOOL.exec(block.name);
+        if (match) {
+          mcps.add(match[1]);
+        }
+      }
+    }
   }
 
   const session = {
@@ -54,6 +65,7 @@ export async function parseSession(file) {
     gitBranch,
     isWorktree,
     prs: [...prs.values()],
+    mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
 
