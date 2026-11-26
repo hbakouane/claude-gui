@@ -187,6 +187,13 @@ describe('server', () => {
     }).on('error', reject).end();
   });
 
+  it('serves the page', async () => {
+    const response = await get('/');
+    assert.equal(response.status, 200);
+    assert.match(response.type, /text\/html/);
+    assert.match(response.body, /<title>Claude Sessions<\/title>/);
+  });
+
   it('serves projects and their sessions', async () => {
     const projects = JSON.parse((await get('/api/projects')).body);
     assert.ok(projects.some((project) => project.id === PROJECT && project.path === '/Users/me/code/app'));

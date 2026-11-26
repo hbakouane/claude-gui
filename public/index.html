@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Sessions</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e4e3de;
+    --accent: #c15f3c; --badge: #f0efea; --ok: #2f7d4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --card: #242422; --text: #ecebe6; --muted: #9a9993; --border: #37362f;
+      --accent: #e08a62; --badge: #31302b; --ok: #6cc28f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; word-break: break-all; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 16px; text-decoration: none; }
+  .list { display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  a.card { display: block; color: inherit; text-decoration: none; }
+  a.card:hover, a.card:focus-visible { border-color: var(--accent); outline: none; }
+  .card h2 { font-size: 16px; margin: 0 0 10px; overflow-wrap: anywhere; }
+  .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .badge { display: inline-block; background: var(--badge); border-radius: 6px; padding: 1px 8px; margin: 0 6px 4px 0; font-size: 13px; }
+  .idle-recent { color: var(--ok); font-weight: 600; }
+  .copy { font: inherit; font-size: 13px; margin-left: 8px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--badge); color: var(--text); cursor: pointer; }
+  .copy:hover, .copy:focus-visible { border-color: var(--accent); }
+  .empty, .error { color: var(--muted); padding: 24px 0; }
+  .error { color: var(--accent); }
+  @media (max-width: 560px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+</style>
+</head>
+<body>
+<main id="app"><p class="empty">Loading…</p></main>
+<script>
+  const app = document.getElementById('app');
+  const RECENT_MS = 10 * 60 * 1000;
+
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function since(iso) {
+    const minutes = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${minutes % 60}m`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+
+  const when = (iso) => new Date(iso).toLocaleString();
+
+  function prLink(pr) {
+    const label = esc(pr.repository ? `${pr.repository}#${pr.number}` : pr.url);
+    return /^https:\/\//.test(pr.url) ? `<a href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
+  }
+
+  async function load(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || response.statusText);
+    return response.json();
+  }
+
+  async function showProjects() {
+    document.title = 'Claude Sessions';
+    const projects = await load('/api/projects');
+    app.innerHTML = `
+      <h1>Projects</h1>
+      <p class="sub">Folders where Claude Code has been run</p>
+      ${projects.length ? `<div class="list">${projects.map((p) => `
+        <a class="card" href="#/p/${encodeURIComponent(p.id)}">
+          <div class="path">${esc(p.path)}</div>
+          <div class="meta">${p.sessionCount} session${p.sessionCount === 1 ? '' : 's'} · last active ${esc(since(p.lastActivity))} ago</div>
+        </a>`).join('')}</div>` : '<p class="empty">No Claude Code sessions found.</p>'}`;
+  }
+
+  async function showSessions(id) {
+    app.innerHTML = '<p class="empty">Reading sessions…</p>';
+    const [projects, sessions] = await Promise.all([load('/api/projects'), load(`/api/projects/${encodeURIComponent(id)}/sessions`)]);
+    const path = projects.find((p) => p.id === id)?.path ?? id;
+    document.title = `${path.split('/').pop()} · Claude Sessions`;
+    app.innerHTML = `
+      <a class="back" href="#/">← All projects</a>
+      <h1>Sessions</h1>
+      <p class="sub path">${esc(path)}</p>
+      ${sessions.length ? `<div class="list">${sessions.map((s) => `
+        <article class="card">
+          <h2>${esc(s.title)}</h2>
+          <dl>
+            <dt>Folder</dt><dd class="path">${esc(s.cwd ?? '—')}</dd>
+            <dt>Git branch</dt><dd><code>${esc(s.gitBranch ?? '—')}</code></dd>
+            <dt>PR</dt><dd>${s.prs.length ? s.prs.map(prLink).join('<br>') : '—'}</dd>
+            <dt>Git worktree</dt><dd>${s.isWorktree ? '<span class="badge">Worktree</span>' : 'No'}</dd>
+            <dt>Last activity</dt><dd>${esc(when(s.lastActivity))}</dd>
+            <dt>Idle for</dt><dd><span class="idle" data-at="${esc(s.lastActivity)}"></span></dd>
+            <dt>Session ID</dt><dd><code>${esc(s.id)}</code><button class="copy" type="button" data-id="${esc(s.id)}">Copy</button></dd>
+            <dt>MCPs used</dt><dd>${s.mcps.length ? s.mcps.map((m) => `<span class="badge">${esc(m)}</span>`).join('') : '—'}</dd>
+          </dl>
+        </article>`).join('')}</div>` : '<p class="empty">No sessions in this project.</p>'}`;
+    tickIdle();
+  }
+
+  function tickIdle() {
+    for (const el of document.querySelectorAll('.idle')) {
+      el.textContent = since(el.dataset.at);
+      el.classList.toggle('idle-recent', Date.now() - Date.parse(el.dataset.at) < RECENT_MS);
+    }
+  }
+
+  app.addEventListener('click', async (event) => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    try {
+      await navigator.clipboard.writeText(button.dataset.id);
+      button.textContent = 'Copied';
+    } catch {
+      button.textContent = 'Copy failed';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  });
+
+  async function route() {
+    const match = location.hash.match(/^#\/p\/(.+)$/);
+    try {
+      await (match ? showSessions(decodeURIComponent(match[1])) : showProjects());
+    } catch (error) {
+      app.innerHTML = `<a class="back" href="#/">← All projects</a><p class="error">Could not load: ${esc(error.message)}</p>`;
+    }
+  }
+
+  window.addEventListener('hashchange', route);
+  setInterval(tickIdle, 30000);
+  route();
+</script>
+</body>
+</html>
