@@ -170,12 +170,10 @@
   .backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(12, 10, 9, .32); opacity: 0; pointer-events: none; transition: opacity .2s; }
 
   /* Session page */
-  .session-head { margin-bottom: 24px; }
-  .session-head h1 { margin: 12px 0 0; font-size: 24px; font-weight: 650; letter-spacing: -.025em; line-height: 1.25; overflow-wrap: anywhere; }
-  .session-head .s-meta { margin-top: 12px; align-items: center; }
-  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; }
-  .back-link:hover { color: var(--text); }
-  .back-link svg { transform: rotate(180deg); }
+  .session-head { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 14px; }
+  .session-head h1 { flex: 0 1 auto; min-width: 120px; max-width: 50%; margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-head .s-meta { flex: 1 1 0; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .session-head .s-meta > * { flex: none; }
   .content.is-session { display: flex; flex-direction: column; height: calc(100vh - 60px); padding-bottom: 24px; }
   .session-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 28px; }
   .session-aside { display: flex; flex-direction: column; gap: 24px; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
@@ -328,6 +326,8 @@
     dl.props { grid-template-columns: 1fr; }
     dl.props dt { border-bottom: 0; padding-bottom: 2px; min-height: 0; background: none; font-size: 12px; }
     .session-aside dl.props { grid-template-columns: 1fr; }
+    .session-head { flex-wrap: wrap; gap: 8px; }
+    .session-head h1 { max-width: 100%; }
     .chat { padding: 18px 14px 24px; }
     .chat-toolbar { flex-wrap: wrap; padding: 10px 14px; }
     .bubble { max-width: 92%; }
@@ -873,10 +873,9 @@
   }
 
   function renderSession() {
-    const project = currentProject();
     const s = currentSession();
     if (!state.sessions) {
-      return `<div class="session-head"><span class="sk" style="display:block;height:12px;width:90px"></span><div class="sk" style="height:26px;width:55%;margin-top:14px"></div><div class="sk" style="height:22px;width:35%;margin-top:12px"></div></div><div class="session-layout"><section class="chat-card">${renderChat()}</section><aside class="session-aside"><div class="sk" style="height:90px;border-radius:10px"></div><div class="sk" style="height:250px;border-radius:10px"></div></aside></div>`;
+      return `<div class="session-head"><div class="sk" style="height:18px;width:32%"></div><div class="sk" style="height:22px;width:28%"></div></div><div class="session-layout"><section class="chat-card">${renderChat()}</section><aside class="session-aside"><div class="sk" style="height:90px;border-radius:10px"></div><div class="sk" style="height:250px;border-radius:10px"></div></aside></div>`;
     }
     if (!s) {
       return emptyState('history', 'Session not found', 'This session no longer exists in this project.', `<a class="btn" href="${projectHref()}">Back to sessions</a>`);
@@ -884,8 +883,7 @@
     const st = status(s.lastActivity);
     return `
       <div class="session-head">
-        <a class="back-link" href="${projectHref()}">${icon('arrow', 14)} ${esc(project ? baseName(project.path) : 'Sessions')}</a>
-        <h1>${esc(s.title)}</h1>
+        <h1 title="${esc(s.title)}">${esc(s.title)}</h1>
         <div class="s-meta">${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}</div>
       </div>
       <div class="session-layout">
