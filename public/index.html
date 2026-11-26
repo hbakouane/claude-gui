@@ -1153,7 +1153,7 @@
     return `
       <div class="session-head">
         <h1 title="${esc(s.title)}">${esc(s.title)}</h1>
-        <div class="s-meta">${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
+        <div class="s-meta">${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
       </div>
       <div class="session-layout">
         <section class="chat-card" aria-label="Conversation">${renderChat()}<button class="jump" type="button" data-action="latest" hidden>${icon('arrow', 14)} Latest</button></section>
