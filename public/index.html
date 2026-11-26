@@ -298,6 +298,9 @@
   .picker-list { display: grid; gap: 8px; margin-top: 4px; }
   .picker-option { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: 600 14px var(--sans); text-align: left; cursor: pointer; }
   .picker-option:hover, .picker-option:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .notify-prompt { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; align-items: center; gap: 12px; max-width: min(460px, calc(100vw - 40px)); padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); font-size: 13.5px; }
+  .notify-prompt[hidden] { display: none; }
+  .notify-prompt .btn { margin-top: 0; white-space: nowrap; }
   .field-input:disabled { opacity: .55; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
@@ -530,6 +533,11 @@
     <div class="picker-list" id="picker-list"></div>
   </form>
 </dialog>
+<div class="notify-prompt" id="notify-prompt" role="region" aria-label="Notifications" hidden>
+  <span>Get a notification when a session finishes or asks you something?</span>
+  <button class="btn btn-primary" type="button" id="notify-on">Turn on</button>
+  <button class="btn" type="button" id="notify-later">Not now</button>
+</div>
 <noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
 
 <script>
@@ -1452,7 +1460,7 @@
       ? 'This browser doesn\'t support desktop notifications.'
       : Notification.permission === 'denied'
         ? 'Your browser is blocking notifications for this page. Allow them in the site settings to turn this on.'
-        : 'Desktop notifications while this dashboard is open in a browser tab, even in the background.';
+        : `Desktop notifications while this dashboard is open in a browser tab, even in the background.${Notification.permission === 'default' ? ' Your browser will ask you to allow them.' : ''}`;
     archiveInput.checked = settings.archive;
     archiveInput.disabled = !settings.archiveDir;
     archiveDaysInput.value = settings.archiveDays ?? '';
@@ -1518,6 +1526,7 @@
       state.settings = body;
       settingsDialog.close();
       connectEvents();
+      promptForNotifications();
       if (!folderChanged) {
         showToast('Settings saved');
         renderContent();
@@ -1550,6 +1559,7 @@
   getJSON('/api/settings').then((settings) => {
     state.settings = settings;
     connectEvents();
+    promptForNotifications();
     if (state.sessionId) renderContent();
   }).catch(() => {});
 
@@ -1586,6 +1596,26 @@
       notification.close();
     };
   }
+
+  // Notifications are on by default, but browsers only ask for permission after a click, so ask with a button.
+  function promptForNotifications() {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('notificationPrompt') === 'dismissed'; } catch {}
+    $('notify-prompt').hidden = !(state.settings?.notifications && 'Notification' in window && Notification.permission === 'default' && !dismissed);
+  }
+  $('notify-on').addEventListener('click', async () => {
+    $('notify-prompt').hidden = true;
+    if (await Notification.requestPermission() === 'granted') {
+      connectEvents();
+      showToast('Notifications are on');
+    } else {
+      showToast('Your browser blocked notifications. You can allow them in its site settings.', true);
+    }
+  });
+  $('notify-later').addEventListener('click', () => {
+    try { localStorage.setItem('notificationPrompt', 'dismissed'); } catch {}
+    $('notify-prompt').hidden = true;
+  });
 
   /* ---------- Terminal choice ---------- */
 

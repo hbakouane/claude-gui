@@ -41,7 +41,7 @@ claude-gui reads the transcripts already on your disk and turns them into a dash
 - **Search everything.** Find any word you or Claude wrote, across every project. Narrow it down by project, date, or who wrote it. Results open the session at the matching message.
 - **What each session did.** Git branch, worktrees, pull requests, artifacts, skills, MCP servers, files changed with diffs, and an estimated cost.
 - **Live sessions.** Pages refresh on their own. While Claude is still working, you see it, and what it's doing right now. Sessions waiting for your answer say **Needs you**.
-- **Notifications.** Turn them on in Settings and get a desktop notification when a session finishes, asks you a question or has a plan for you to approve. Click it to open that session.
+- **Notifications.** A desktop notification when a session finishes, asks you a question or has a plan for you to approve. Click it to open that session. On by default: your browser asks for permission once.
 - **Sessions that outlive Claude's cleanup.** Claude Code deletes sessions after 30 days by default. claude-gui keeps a compressed copy, so old sessions stay searchable, and **Restore and resume** brings one back into Claude Code.
 - **Made to fit how you work.** Pin the boxes you check most. Choose your Claude folder, editor, port and theme in Settings. Keyboard shortcuts for everything.
 
@@ -96,7 +96,7 @@ Click the gear icon in the top bar to change these without touching the command 
 - **Port:** used the next time the dashboard starts.
 - **Open the browser on start:** on by default.
 - **Terminal:** where Resume opens a session. The first time you click Resume, claude-gui asks which one to use if more than one is installed.
-- **Notifications:** off by default. Desktop notifications when a session finishes or asks you something, while the dashboard is open in a browser tab.
+- **Notifications:** on by default. Desktop notifications when a session finishes or asks you something, while the dashboard is open in a browser tab. The dashboard asks for your browser's permission once.
 - **Keep a copy of every session:** on by default. See [Archive](#archive).
 - **Keep copies for:** how many days after a session's last activity to keep its copy. Empty keeps them forever.
 

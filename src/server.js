@@ -23,7 +23,7 @@ const SEARCH_WHO = new Set(['you', 'claude']);
 const HEARTBEAT_MS = 25_000;
 export const RESUME_HEADER = 'claude-gui';
 
-export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = null, platform = process.platform, launch = spawnTerminal, openFolder = openEditor, archiveDir = null, archive = false, archiveDays = null, notifications = false, watchIntervalMs = 3000, syncIntervalMs = SYNC_INTERVAL_MS }) {
+export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = null, platform = process.platform, launch = spawnTerminal, openFolder = openEditor, archiveDir = null, archive = false, archiveDays = null, notifications = true, watchIntervalMs = 3000, syncIntervalMs = SYNC_INTERVAL_MS }) {
   const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR, terminal: isTerminal(platform, terminal) ? terminal : null, platform, archiveDir, archiving: Boolean(archive && archiveDir), archiveDays: isValidKeepDays(archiveDays) ? archiveDays : null, notifications: Boolean(notifications) };
   const archiver = createArchiver(settings, syncIntervalMs);
   const notifier = createNotifier({ scan: () => activeSessions(settings.root), intervalMs: watchIntervalMs });
@@ -273,7 +273,7 @@ async function updateSettings(req, res, { settings, configFile, env, archiver, p
     Object.assign(settings, { root: join(folder.claudeDir, 'projects'), claudeDir: folder.claudeDir, source: folder.source });
   }
   settings.editor = config.editor ?? settings.editor;
-  settings.notifications = config.notifications === true;
+  settings.notifications = config.notifications !== false;
   if ('terminal' in body) {
     settings.terminal = config.terminal ?? null;
   }

@@ -38,7 +38,7 @@ if (values.terminal !== undefined && !isTerminal(process.platform, values.termin
 const { claudeDir, source } = resolveClaudeDir({ flag: values['claude-dir'], saved: config.claudeDir });
 const archiveDir = archivePath();
 const archive = config.archive !== false;
-const server = createServer({ claudeDir, source, configFile, editor: config.editor, terminal: values.terminal ?? config.terminal, archiveDir, archive, archiveDays: config.archiveDays, notifications: config.notifications === true });
+const server = createServer({ claudeDir, source, configFile, editor: config.editor, terminal: values.terminal ?? config.terminal, archiveDir, archive, archiveDays: config.archiveDays, notifications: config.notifications !== false });
 
 server.on('error', (error) => {
   console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Try --port <another port>.` : error.message);

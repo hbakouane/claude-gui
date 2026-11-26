@@ -206,7 +206,8 @@ describe('archive through the server', () => {
 
   it('reports and saves the archive setting, and rejects values that are not booleans', async () => {
     const settings = (await call('GET', '/api/settings')).body;
-    assert.deepEqual([settings.archive, settings.archiveDir, settings.notifications], [true, archive, false]);
+    // Notifications are on unless turned off.
+    assert.deepEqual([settings.archive, settings.archiveDir, settings.notifications], [true, archive, true]);
 
     assert.equal(settings.archiveDays, null);
     for (const archiveDays of [0, -3, 1.5, '30', 36501]) {
