@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Sessions</title>
+<title>claude-gui</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d97757'/%3E%3Cg fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' transform='translate(4 4)'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root {
@@ -436,7 +436,7 @@
   <aside class="sidebar" aria-label="Projects">
     <a class="brand" href="#/">
       <span class="logo" data-icon="history" data-size="17"></span>
-      <span><div class="brand-name">Claude Sessions</div><div class="brand-sub">Local session browser</div></span>
+      <span><div class="brand-name">claude-gui</div><div class="brand-sub">Claude Code sessions</div></span>
     </a>
     <div class="side-label"><span>Projects</span><span class="count" id="project-count"></span></div>
     <nav class="nav" id="nav"></nav>
@@ -668,7 +668,7 @@
     document.querySelector('.search').hidden = Boolean(state.sessionId);
     search.placeholder = state.projectId ? 'Search sessions…' : 'Search all conversations…';
     search.title = state.projectId ? 'Search by title, branch, PR, session ID, skill or MCP server' : 'Search what you and Claude said in every session';
-    document.title = session ? `${session.title} · Claude Sessions` : project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
+    document.title = session ? `${session.title} · claude-gui` : project ? `${baseName(project.path)} · claude-gui` : 'claude-gui';
     tickUpdated();
   }
 
@@ -1388,7 +1388,7 @@
     try {
       const response = await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-sessions-dashboard' },
+        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' },
         body: JSON.stringify(changes),
       });
       const body = await response.json().catch(() => ({}));
@@ -1432,7 +1432,7 @@
     try {
       const response = await fetch('/api/open-editor', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-sessions-dashboard' },
+        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' },
         body: JSON.stringify({ projectId: state.projectId, sessionId: state.sessionId, path: path ?? null }),
       });
       const body = await response.json().catch(() => ({}));
@@ -1543,7 +1543,7 @@
     try {
       const response = await fetch('/api/resume', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-sessions-dashboard' },
+        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' },
         body: JSON.stringify({ projectId, sessionId }),
       });
       const body = await response.json().catch(() => ({}));

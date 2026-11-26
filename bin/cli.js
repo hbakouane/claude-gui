@@ -16,7 +16,7 @@ const { values } = parseArgs({
 });
 
 if (values.help) {
-  console.log('Usage: claude-sessions-dashboard [--port 4321] [--no-open] [--terminal terminal|iterm] [--claude-dir ~/.claude]');
+  console.log('Usage: claude-gui [--port 4321] [--no-open] [--terminal terminal|iterm] [--claude-dir ~/.claude]');
   process.exit(0);
 }
 
@@ -43,7 +43,7 @@ server.on('error', (error) => {
 
 server.listen(port, '127.0.0.1', () => {
   const url = `http://127.0.0.1:${server.address().port}`;
-  console.log(`Claude sessions dashboard: ${url}`);
+  console.log(`claude-gui is running at ${url}`);
   console.log(`Reading ${join(claudeDir, 'projects')}`);
   if (shouldOpen) {
     openBrowser(url);

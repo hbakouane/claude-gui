@@ -455,7 +455,7 @@ describe('server', () => {
     const response = await get('/');
     assert.equal(response.status, 200);
     assert.match(response.type, /text\/html/);
-    assert.match(response.body, /<title>Claude Sessions<\/title>/);
+    assert.match(response.body, /<title>claude-gui<\/title>/);
   });
 
   it('serves projects and their sessions', async () => {

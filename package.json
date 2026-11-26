@@ -1,10 +1,16 @@
 {
-  "name": "claude-sessions-dashboard",
+  "name": "claude-gui",
   "version": "0.1.0",
-  "description": "A local web dashboard to browse your Claude Code sessions by project: title, branch, PRs, worktree, idle time, MCPs used and session ID.",
+  "description": "A local dashboard for your Claude Code history: search every conversation, see what each session changed and cost, and resume any of them in one click.",
+  "homepage": "https://github.com/hbakouane/claude-gui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hbakouane/claude-gui.git"
+  },
+  "bugs": "https://github.com/hbakouane/claude-gui/issues",
   "type": "module",
   "bin": {
-    "claude-sessions-dashboard": "bin/cli.js"
+    "claude-gui": "bin/cli.js"
   },
   "files": [
     "bin",

@@ -16,7 +16,7 @@ const MAX_BODY_BYTES = 10_000;
 const MAX_QUERY_LENGTH = 200;
 const MAX_PATH_LENGTH = 1000;
 const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port'];
-export const RESUME_HEADER = 'claude-sessions-dashboard';
+export const RESUME_HEADER = 'claude-gui';
 
 export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal, openFolder = openEditor }) {
   const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR };
