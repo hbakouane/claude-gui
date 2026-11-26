@@ -495,7 +495,9 @@
 
   function renderProject() {
     const project = currentProject();
-    const head = `<div class="page-head">${avatar(baseName(project?.path ?? state.projectId), 'lg')}<div style="min-width:0"><h1>${esc(project ? baseName(project.path) : 'Project')}</h1><p class="mono" title="${esc(project?.path)}">${esc(tilde(project?.path ?? ''))}</p></div></div>`;
+    const head = project
+      ? `<div class="page-head">${avatar(baseName(project.path), 'lg')}<div style="min-width:0"><h1>${esc(baseName(project.path))}</h1><p class="mono" title="${esc(project.path)}">${esc(tilde(project.path))}</p></div></div>`
+      : '<div class="page-head"><span class="sk" style="width:36px;height:36px;border-radius:9px"></span><div><div class="sk" style="height:20px;width:150px"></div><div class="sk" style="height:11px;width:230px;margin-top:8px"></div></div></div>';
 
     if (state.sessionsError) {
       return state.sessionsError.status === 404
