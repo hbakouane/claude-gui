@@ -373,7 +373,7 @@ describe('searchSessions', () => {
       { type: 'user', cwd: '/Users/me/api', message: { content: 'Why is the SYNC so slow today?' }, timestamp: '2026-11-20T10:00:00.000Z' },
       { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: { command: 'grep sync slow' } }] }, timestamp: '2026-11-20T10:00:01.000Z' },
       { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'the sync is slow in the logs' }] }, timestamp: '2026-11-20T10:00:02.000Z' },
-      { type: 'assistant', message: { content: [{ type: 'text', text: `${'Context. '.repeat(30)}The sync is slow because the full customer call takes 176 seconds. ${'More. '.repeat(40)}` }] }, timestamp: '2026-11-20T10:00:03.000Z' },
+      { type: 'assistant', message: { content: [{ type: 'text', text: `${'Context. '.repeat(30)}The sync is slow because the **full** \`customer\` call takes 176 seconds. ${'More. '.repeat(40)}` }] }, timestamp: '2026-11-20T10:00:03.000Z' },
       { type: 'user', isMeta: true, message: { content: 'meta mentions sync slow' }, timestamp: '2026-11-20T10:00:04.000Z' },
     );
     await write('-Users-me-web', 'web',

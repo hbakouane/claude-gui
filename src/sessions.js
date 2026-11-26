@@ -427,7 +427,7 @@ export async function searchSessions(root, query, limit = SEARCH_LIMIT) {
             kind: text.kind,
             at: text.at,
             index: text.index,
-            snippet: snippet(text.text, text.lower, terms[0]),
+            snippet: snippet(text.text, terms[0]),
           });
         }
       }
@@ -452,12 +452,13 @@ async function searchIndex(file) {
   return texts;
 }
 
-function snippet(text, lower, term) {
-  const at = Math.max(0, lower.indexOf(term));
+function snippet(text, term) {
+  const clean = plainText(text).replace(/\s+/g, ' ').trim();
+  const at = Math.max(0, clean.toLowerCase().indexOf(term));
   const start = Math.max(0, at - 80);
-  const end = Math.min(text.length, at + term.length + 140);
+  const end = Math.min(clean.length, at + term.length + 140);
 
-  return `${start > 0 ? '…' : ''}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${end < text.length ? '…' : ''}`;
+  return `${start > 0 ? '…' : ''}${clean.slice(start, end).trim()}${end < clean.length ? '…' : ''}`;
 }
 
 export async function parseConversation(file) {
