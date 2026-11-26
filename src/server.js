@@ -2,10 +2,12 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { isAbsolute, join } from 'node:path';
+import { isValidKeepDays, MAX_KEEP_DAYS, previewPrune, restoreSession, SYNC_INTERVAL_MS, syncArchive } from './archive.js';
 import { DEFAULT_PORT, expandHome, isValidPort, MIN_PORT, readConfig, resolveClaudeDir, writeConfig } from './config.js';
 import { DEFAULT_EDITOR, EDITORS, editorCommand, openEditor } from './editor.js';
-import { launch as spawnTerminal, terminalCommand } from './resume.js';
-import { findSession, listProjects, listRecent, listSessions, readConversation, searchSessions } from './sessions.js';
+import { createNotifier } from './notify.js';
+import { defaultTerminal, isTerminal, launch as spawnTerminal, listTerminals, terminalCommand } from './resume.js';
+import { activeSessions, findSession, listProjects, listRecent, listSessions, parseSession, readConversation, searchSessions, sessionPath } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -15,14 +17,20 @@ const MAX_RECENT_HOURS = 168;
 const MAX_BODY_BYTES = 10_000;
 const MAX_QUERY_LENGTH = 200;
 const MAX_PATH_LENGTH = 1000;
-const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port'];
+const SETTING_KEYS = ['claudeDir', 'editor', 'terminal', 'openBrowser', 'port', 'notifications', 'archive', 'archiveDays'];
+const BOOLEAN_SETTINGS = ['openBrowser', 'notifications', 'archive'];
+const SEARCH_WHO = new Set(['you', 'claude']);
+const HEARTBEAT_MS = 25_000;
 export const RESUME_HEADER = 'claude-gui';
 
-export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal, openFolder = openEditor }) {
-  const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR };
+export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = null, platform = process.platform, launch = spawnTerminal, openFolder = openEditor, archiveDir = null, archive = false, archiveDays = null, notifications = true, watchIntervalMs = 3000, syncIntervalMs = SYNC_INTERVAL_MS }) {
+  const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR, terminal: isTerminal(platform, terminal) ? terminal : null, platform, archiveDir, archiving: Boolean(archive && archiveDir), archiveDays: isValidKeepDays(archiveDays) ? archiveDays : null, notifications: Boolean(notifications) };
+  const archiver = createArchiver(settings, syncIntervalMs);
+  const notifier = createNotifier({ scan: () => activeSessions(settings.root), intervalMs: watchIntervalMs });
 
-  return createHttpServer(async (req, res) => {
+  const server = createHttpServer(async (req, res) => {
     const { root } = settings;
+    const archived = { archive: settings.archiving ? settings.archiveDir : null };
     // Session files are private; rejecting foreign Host headers blocks DNS-rebinding reads from other sites.
     if (!LOCAL_HOSTS.has((req.headers.host ?? '').replace(/:\d+$/, ''))) {
       return send(res, 403, { error: 'Forbidden' });
@@ -36,31 +44,46 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
         return res.end(await readFile(INDEX));
       }
       if (pathname === '/api/projects') {
-        return send(res, 200, await listProjects(root));
+        return send(res, 200, await listProjects(root, archived));
       }
       if (pathname === '/api/recent') {
         const hours = Math.min(MAX_RECENT_HOURS, Math.max(1, Number(url.searchParams.get('hours')) || 24));
-        return send(res, 200, await listRecent(root, hours));
+        return send(res, 200, await listRecent(root, hours, Date.now(), archived));
       }
       if (pathname === '/api/search') {
-        return send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH)));
+        const filters = searchFilters(url.searchParams);
+        return filters.error
+          ? send(res, 400, { error: filters.error })
+          : send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH), { ...filters, ...archived }));
+      }
+      if (pathname === '/api/archive-preview') {
+        const days = Number(url.searchParams.get('days'));
+        if (!settings.archiveDir) {
+          return send(res, 409, { error: 'Archiving isn\'t available in this mode' });
+        }
+        return isValidKeepDays(days)
+          ? send(res, 200, await previewPrune(root, settings.archiveDir, days))
+          : send(res, 400, { error: `days must be a whole number between 1 and ${MAX_KEEP_DAYS}` });
+      }
+      if (pathname === '/api/events') {
+        return streamEvents(req, res, notifier);
       }
       if (pathname === '/api/settings') {
-        return await updateSettings(req, res, { settings, configFile, env });
+        return await updateSettings(req, res, { settings, configFile, env, archiver, platform });
       }
       if (pathname === '/api/open-editor') {
-        return await openInEditor(req, res, { root, editor: settings.editor, platform, open: openFolder });
+        return await openInEditor(req, res, { root, archive: archived.archive, editor: settings.editor, platform, open: openFolder });
       }
       if (pathname === '/api/resume') {
-        return await resume(req, res, { root, terminal, platform, launch });
+        return await resume(req, res, { root, archive: archived.archive, terminal: settings.terminal, platform, launch });
       }
       const messagesMatch = MESSAGES_ROUTE.exec(pathname);
       if (messagesMatch) {
-        const messages = await readConversation(root, safeDecode(messagesMatch[1]), safeDecode(messagesMatch[2]));
+        const messages = await readConversation(root, safeDecode(messagesMatch[1]), safeDecode(messagesMatch[2]), archived);
         return messages ? send(res, 200, messages) : send(res, 404, { error: 'Not found' });
       }
       const match = SESSIONS_ROUTE.exec(pathname);
-      const sessions = match && await listSessions(root, safeDecode(match[1]));
+      const sessions = match && await listSessions(root, safeDecode(match[1]), archived);
       if (sessions) {
         return send(res, 200, sessions);
       }
@@ -69,9 +92,81 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
       send(res, 500, { error: error.message });
     }
   });
+  server.on('listening', () => archiver.start());
+  server.on('close', () => archiver.stop());
+
+  return server;
 }
 
-async function resume(req, res, { root, terminal, platform, launch }) {
+// Keeps the archive in sync while archiving is on: once at start, then every `intervalMs`.
+function createArchiver(settings, intervalMs) {
+  let timer = null;
+  let running = null;
+  const run = () => {
+    if (!settings.archiving || running) {
+      return running;
+    }
+    running = syncArchive(settings.root, settings.archiveDir, { keepDays: settings.archiveDays }).catch(() => null).finally(() => { running = null; });
+    return running;
+  };
+
+  return {
+    start() {
+      if (!settings.archiving || timer) {
+        return;
+      }
+      run();
+      timer = setInterval(run, intervalMs);
+      timer.unref?.();
+    },
+    stop() {
+      clearInterval(timer);
+      timer = null;
+    },
+    run,
+  };
+}
+
+function searchFilters(params) {
+  const filters = {};
+  const project = params.get('project');
+  if (project) {
+    filters.project = project.slice(0, MAX_PATH_LENGTH);
+  }
+  for (const key of ['from', 'to']) {
+    const value = params.get(key);
+    if (value && Number.isNaN(Date.parse(value))) {
+      return { error: `${key} must be a date, like 2026-11-20` };
+    }
+    if (value) {
+      filters[key] = value;
+    }
+  }
+  const who = params.get('who');
+  if (who && !SEARCH_WHO.has(who)) {
+    return { error: 'who must be you or claude' };
+  }
+  if (who) {
+    filters.who = who;
+  }
+
+  return filters;
+}
+
+// Server-sent events stay delivered in background tabs, unlike timers, so a hidden dashboard can still notify.
+function streamEvents(req, res, notifier) {
+  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive' });
+  res.write('retry: 5000\n\n');
+  const unsubscribe = notifier.subscribe((event) => res.write(`data: ${JSON.stringify(event)}\n\n`));
+  const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), HEARTBEAT_MS);
+  heartbeat.unref?.();
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+}
+
+async function resume(req, res, { root, archive, terminal, platform, launch }) {
   if (req.method !== 'POST') {
     return send(res, 405, { error: 'Use POST' });
   }
@@ -80,20 +175,24 @@ async function resume(req, res, { root, terminal, platform, launch }) {
     return send(res, 400, { error: 'Missing X-Requested-With header' });
   }
   const body = await readJson(req);
-  const session = body && await findSession(root, String(body.projectId ?? ''), String(body.sessionId ?? ''));
+  const projectId = String(body?.projectId ?? '');
+  const file = body && await sessionPath(root, projectId, String(body.sessionId ?? ''), archive);
+  const session = file && await parseSession(file);
   if (!session) {
     return send(res, 404, { error: 'Session not found' });
   }
   if (!session.cwd || !existsSync(session.cwd)) {
     return send(res, 409, { error: 'The session folder no longer exists' });
   }
+  // Claude Code deleted this transcript; put the archived copy back so `claude --resume` finds it.
+  const restored = session.archived && await restoreSession(file, join(root, projectId, `${session.id}.jsonl`));
   const [command, args] = terminalCommand({ platform, terminal, cwd: session.cwd, sessionId: session.id });
   await launch(command, args);
 
-  return send(res, 200, { opened: true });
+  return send(res, 200, { opened: true, restored: Boolean(restored) });
 }
 
-async function updateSettings(req, res, { settings, configFile, env }) {
+async function updateSettings(req, res, { settings, configFile, env, archiver, platform }) {
   if (req.method === 'GET') {
     return send(res, 200, await describe(settings, configFile, req));
   }
@@ -142,11 +241,32 @@ async function updateSettings(req, res, { settings, configFile, env }) {
     }
     config.editor = body.editor;
   }
-  if ('openBrowser' in body) {
-    if (typeof body.openBrowser !== 'boolean') {
-      return send(res, 400, { error: 'openBrowser must be true or false' });
+  if ('terminal' in body) {
+    if (body.terminal === null) {
+      delete config.terminal;
+    } else if (!isTerminal(platform, body.terminal)) {
+      return send(res, 400, { error: `Pick one of these terminals: ${listTerminals({ platform }).map((t) => t.id).join(', ')}` });
+    } else {
+      config.terminal = body.terminal;
     }
-    config.openBrowser = body.openBrowser;
+  }
+  for (const key of BOOLEAN_SETTINGS.filter((k) => k in body)) {
+    if (typeof body[key] !== 'boolean') {
+      return send(res, 400, { error: `${key} must be true or false` });
+    }
+    config[key] = body[key];
+  }
+  if ('archiveDays' in body) {
+    if (body.archiveDays === null) {
+      delete config.archiveDays;
+    } else if (!isValidKeepDays(body.archiveDays)) {
+      return send(res, 400, { error: `Keep copies for a whole number of days between 1 and ${MAX_KEEP_DAYS}, or empty to keep them forever` });
+    } else {
+      config.archiveDays = body.archiveDays;
+    }
+  }
+  if (body.archive === true && !settings.archiveDir) {
+    return send(res, 409, { error: 'Archiving isn\'t available in this mode' });
   }
   if ('port' in body) {
     if (body.port === null) {
@@ -162,6 +282,22 @@ async function updateSettings(req, res, { settings, configFile, env }) {
     Object.assign(settings, { root: join(folder.claudeDir, 'projects'), claudeDir: folder.claudeDir, source: folder.source });
   }
   settings.editor = config.editor ?? settings.editor;
+  settings.notifications = config.notifications !== false;
+  if ('terminal' in body) {
+    settings.terminal = config.terminal ?? null;
+  }
+  settings.archiving = Boolean(settings.archiveDir) && config.archive !== false;
+  settings.archiveDays = isValidKeepDays(config.archiveDays) ? config.archiveDays : null;
+  if (settings.archiving) {
+    archiver.start();
+    const sync = archiver.run();
+    // Wait when only the retention changed, so expired copies are gone before the page reloads its lists.
+    if ('archiveDays' in body && !('archive' in body)) {
+      await sync;
+    }
+  } else {
+    archiver.stop();
+  }
 
   return send(res, 200, await describe(settings, configFile, req));
 }
@@ -176,14 +312,21 @@ async function describe(settings, configFile, req) {
     configFile,
     editor: settings.editor,
     editors: Object.entries(EDITORS).map(([id, { label }]) => ({ id, label })),
+    terminal: settings.terminal,
+    terminals: listTerminals({ platform: settings.platform }),
+    defaultTerminal: defaultTerminal(settings.platform),
     openBrowser: config.openBrowser !== false,
+    notifications: settings.notifications,
+    archive: settings.archiving,
+    archiveDir: settings.archiveDir,
+    archiveDays: settings.archiveDays,
     port: isValidPort(config.port) ? config.port : null,
     defaultPort: DEFAULT_PORT,
     runningPort: req.socket.localPort,
   };
 }
 
-async function openInEditor(req, res, { root, editor, platform, open }) {
+async function openInEditor(req, res, { root, archive, editor, platform, open }) {
   if (req.method !== 'POST') {
     return send(res, 405, { error: 'Use POST' });
   }
@@ -191,7 +334,7 @@ async function openInEditor(req, res, { root, editor, platform, open }) {
     return send(res, 400, { error: 'Missing X-Requested-With header' });
   }
   const body = await readJson(req);
-  const session = body && await findSession(root, String(body.projectId ?? ''), String(body.sessionId ?? ''));
+  const session = body && await findSession(root, String(body.projectId ?? ''), String(body.sessionId ?? ''), { archive });
   if (!session) {
     return send(res, 404, { error: 'Session not found' });
   }

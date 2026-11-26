@@ -4,7 +4,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { shellQuote, terminalCommand } from '../src/resume.js';
+import { listTerminals, shellQuote, terminalCommand } from '../src/resume.js';
 import { createServer, RESUME_HEADER } from '../src/server.js';
 
 const SESSION_ID = 'aaaa1111-bbbb-2222-cccc-333344445555';
@@ -42,6 +42,32 @@ describe('terminalCommand', () => {
     ]]);
   });
 
+  it('opens other macOS terminals as a new app instance running the resume script', () => {
+    const script = `cd /Users/me/app && claude --resume ${SESSION_ID}; exec "\${SHELL:-sh}"`;
+    const run = (terminal) => terminalCommand({ platform: 'darwin', terminal, cwd: '/Users/me/app', sessionId: SESSION_ID });
+
+    assert.deepEqual(run('ghostty'), ['open', ['-na', 'Ghostty', '--args', '-e', 'sh', '-c', script]]);
+    assert.deepEqual(run('wezterm'), ['open', ['-na', 'WezTerm', '--args', 'start', '--', 'sh', '-c', script]]);
+    assert.deepEqual(run('kitty'), ['open', ['-na', 'kitty', '--args', 'sh', '-c', script]]);
+    assert.deepEqual(run('alacritty'), ['open', ['-na', 'Alacritty', '--args', '-e', 'sh', '-c', script]]);
+  });
+
+  it('runs the chosen Linux terminal, and Windows Terminal in the session folder', () => {
+    const script = `cd /home/me/app && claude --resume ${SESSION_ID}; exec "\${SHELL:-sh}"`;
+    const linux = (terminal) => terminalCommand({ platform: 'linux', terminal, cwd: '/home/me/app', sessionId: SESSION_ID });
+
+    assert.deepEqual(linux('gnome-terminal'), ['gnome-terminal', ['--', 'sh', '-c', script]]);
+    assert.deepEqual(linux('konsole'), ['konsole', ['-e', 'sh', '-c', script]]);
+    assert.deepEqual(linux('wezterm'), ['wezterm', ['start', '--', 'sh', '-c', script]]);
+    assert.deepEqual(terminalCommand({ platform: 'win32', terminal: 'wt', cwd: 'C:\\code\\app', sessionId: SESSION_ID }), ['wt', ['-d', 'C:\\code\\app', 'cmd', '/k', `claude --resume ${SESSION_ID}`]]);
+  });
+
+  it('falls back to the platform default for a terminal from another platform', () => {
+    assert.equal(terminalCommand({ platform: 'darwin', terminal: 'konsole', cwd: '/x', sessionId: SESSION_ID })[0], 'osascript');
+    assert.equal(terminalCommand({ platform: 'linux', terminal: 'iterm', cwd: '/x', sessionId: SESSION_ID })[0], 'x-terminal-emulator');
+    assert.equal(terminalCommand({ platform: 'win32', terminal: 'ghostty', cwd: 'C:\\x', sessionId: SESSION_ID })[0], 'cmd');
+  });
+
   it('refuses session ids that are not plain identifiers', () => {
     assert.throws(() => terminalCommand({ platform: 'darwin', cwd: '/x', sessionId: 'abc; rm -rf ~' }), /Invalid session id/);
   });
@@ -49,6 +75,25 @@ describe('terminalCommand', () => {
   it('only quotes values that need it', () => {
     assert.equal(shellQuote('/Users/me/app-1.2'), '/Users/me/app-1.2');
     assert.equal(shellQuote('/Users/me/my app'), `'/Users/me/my app'`);
+  });
+});
+
+describe('listTerminals', () => {
+  const installed = (options) => listTerminals(options).filter((t) => t.installed).map((t) => t.id);
+
+  it('finds macOS apps by their bundle, and always offers Terminal', () => {
+    const apps = new Set(['/Applications/Ghostty.app', '/Applications/iTerm.app']);
+    assert.deepEqual(installed({ platform: 'darwin', exists: (path) => apps.has(path) }), ['terminal', 'iterm', 'ghostty']);
+    assert.deepEqual(listTerminals({ platform: 'darwin', exists: () => false }).map((t) => t.label), ['Terminal', 'iTerm2', 'Ghostty', 'WezTerm', 'kitty', 'Alacritty']);
+  });
+
+  it('finds Linux and Windows terminals on the PATH', () => {
+    const bins = new Set(['/usr/bin/konsole', '/opt/bin/kitty', 'C:/tools/wt.exe']);
+    const exists = (path) => bins.has(path.replace(/\\/g, '/'));
+
+    assert.deepEqual(installed({ platform: 'linux', env: { PATH: '/usr/bin:/opt/bin' }, exists }), ['default', 'konsole', 'kitty']);
+    assert.deepEqual(installed({ platform: 'linux', env: {}, exists }), ['default']);
+    assert.deepEqual(installed({ platform: 'win32', env: { PATH: 'C:/tools' }, exists }).sort(), ['cmd', 'wt']);
   });
 });
 
@@ -89,10 +134,46 @@ describe('POST /api/resume', () => {
     const response = await post({ projectId: '-proj', sessionId: SESSION_ID });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { opened: true });
+    assert.deepEqual(response.body, { opened: true, restored: false });
     assert.equal(launched.length, 1);
     assert.equal(launched[0][0], 'osascript');
     assert.match(launched[0][1][1], new RegExp(`claude --resume ${SESSION_ID}`));
+  });
+
+  it('opens the terminal chosen in Settings, and validates the choice', async () => {
+    const configFile = join(root, 'config.json');
+    const chooser = createServer({ root, configFile, platform: 'darwin', launch: async (command, args) => { launched.push([command, args]); } });
+    await new Promise((resolve) => chooser.listen(0, '127.0.0.1', resolve));
+    const call = (path, method, body) => new Promise((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port: chooser.address().port, path, method, headers: { 'content-type': 'application/json', 'x-requested-with': RESUME_HEADER } }, (res) => {
+        let text = '';
+        res.on('data', (chunk) => { text += chunk; });
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(text) }));
+      });
+      req.on('error', reject);
+      req.end(body === undefined ? undefined : JSON.stringify(body));
+    });
+
+    try {
+      const settings = (await call('/api/settings', 'GET')).body;
+      assert.deepEqual([settings.terminal, settings.defaultTerminal], [null, 'terminal']);
+      assert.deepEqual(settings.terminals.map((t) => t.id), ['terminal', 'iterm', 'ghostty', 'wezterm', 'kitty', 'alacritty']);
+
+      assert.equal((await call('/api/settings', 'POST', { terminal: 'konsole' })).status, 400);
+      assert.equal((await call('/api/settings', 'POST', { terminal: 7 })).status, 400);
+      assert.equal((await call('/api/settings', 'POST', { terminal: 'ghostty' })).body.terminal, 'ghostty');
+
+      launched = [];
+      await call('/api/resume', 'POST', { projectId: '-proj', sessionId: SESSION_ID });
+      assert.deepEqual(launched[0].slice(0, 1).concat(launched[0][1].slice(0, 3)), ['open', '-na', 'Ghostty', '--args']);
+
+      assert.equal((await call('/api/settings', 'POST', { terminal: null })).body.terminal, null);
+      launched = [];
+      await call('/api/resume', 'POST', { projectId: '-proj', sessionId: SESSION_ID });
+      assert.equal(launched[0][0], 'osascript');
+    } finally {
+      await new Promise((resolve) => chooser.close(resolve));
+    }
   });
 
   it('rejects requests without the dashboard header, which blocks other websites', async () => {

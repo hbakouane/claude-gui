@@ -163,7 +163,7 @@
   /* Project cards */
   .block-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; }
   .block-head h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
-  .recent { margin-bottom: 30px; }
+  section.recent { margin-bottom: 30px; }
   .projects-block { margin-bottom: 34px; }
   .recent-list .row { grid-template-columns: minmax(0, 1fr) 150px 96px 120px; }
   .chip-project { font-weight: 550; color: var(--text); }
@@ -283,6 +283,34 @@
   .typing span:nth-child(2) { animation-delay: .15s; }
   .typing span:nth-child(3) { animation-delay: .3s; }
   .c-idle .working { color: var(--green); font-weight: 600; }
+  .c-idle .waiting { color: var(--amber); font-weight: 600; }
+  .pill.waiting { background: var(--amber-soft); color: var(--amber); }
+  .chip-archived { color: var(--text-2); background: var(--hover); border-color: transparent; font-weight: 500; }
+  .search-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -10px 0 18px; }
+  .search-filters select, .search-filters input { height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: 13px var(--sans); }
+  .search-filters select:focus, .search-filters input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel); }
+  .seg button { height: 30px; padding: 0 12px; border: 0; background: transparent; color: var(--text-2); font: 550 13px var(--sans); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-strong); }
+  .field-check + .field-help, .field-sub { margin-left: 25px; }
+  .settings.picker { width: min(420px, calc(100vw - 32px)); }
+  .picker-list { display: grid; gap: 8px; margin-top: 4px; }
+  .picker-option { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: 600 14px var(--sans); text-align: left; cursor: pointer; }
+  .picker-option:hover, .picker-option:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .notify-prompt { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; align-items: center; gap: 12px; max-width: min(460px, calc(100vw - 40px)); padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); font-size: 13.5px; }
+  .notify-prompt[hidden] { display: none; }
+  .notify-prompt .btn { margin-top: 0; white-space: nowrap; }
+  .field-input:disabled { opacity: .55; }
+  .danger-zone { display: grid; gap: 8px; margin-top: 6px; padding: 14px; border: 1px solid rgba(220, 38, 38, .4); border-radius: 10px; background: rgba(220, 38, 38, .05); }
+  .danger-zone .field-input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
+  .danger-title { display: flex; align-items: center; gap: 6px; color: #dc2626; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .danger-note { margin: 0; color: #dc2626; font-size: 13px; font-weight: 600; line-height: 1.5; }
+  .danger-note.safe { color: var(--text-3); font-weight: 500; }
+  .danger-confirm { display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: rgba(220, 38, 38, .1); }
+  .danger-confirm[hidden] { display: none; }
+  .danger-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .danger-actions .btn { margin-top: 0; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
   .compact-note > summary { padding: 10px 14px; cursor: pointer; font-weight: 550; }
@@ -373,6 +401,8 @@
   .settings-actions .btn { margin-top: 0; }
   .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
   .btn:disabled { opacity: .6; cursor: default; }
   .btn[hidden] { display: none; }
   .toast { position: fixed; left: 50%; bottom: 28px; z-index: 40; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 10px); transition: opacity .18s, transform .18s; pointer-events: none; }
@@ -482,10 +512,31 @@
     <p class="field-help">Used by the “Open in editor” buttons on session pages.</p>
     <select class="field-input" id="editor-select"></select>
     <div class="field-sep"></div>
+    <label class="field-label" for="terminal-select">Terminal</label>
+    <p class="field-help" id="terminal-help">Where “Resume” opens a session.</p>
+    <select class="field-input" id="terminal-select"></select>
+    <div class="field-sep"></div>
     <label class="field-label" for="port-input">Port</label>
     <p class="field-help" id="port-help"></p>
     <input class="field-input" id="port-input" type="number" min="1024" max="65535" step="1" inputmode="numeric">
     <label class="field-check"><input type="checkbox" id="open-browser"> Open the browser when the dashboard starts</label>
+    <div class="field-sep"></div>
+    <label class="field-check"><input type="checkbox" id="notifications-input"> Notify me when a session finishes or asks me something</label>
+    <p class="field-help" id="notifications-help"></p>
+    <div class="field-sep"></div>
+    <label class="field-check"><input type="checkbox" id="archive-input"> Keep a copy of every session</label>
+    <p class="field-help" id="archive-help"></p>
+    <div class="danger-zone field-sub" role="group" aria-labelledby="danger-title">
+      <div class="danger-title" id="danger-title"><span data-icon="alert" data-size="13"></span> Danger zone</div>
+      <label class="field-label" for="archive-days">Keep copies for (days)</label>
+      <p class="field-help" id="archive-days-help">Copies of sessions inactive for longer are permanently deleted when you save. For a session Claude Code already deleted, its copy is the last one left. Leave empty to keep copies forever.</p>
+      <input class="field-input" id="archive-days" type="number" min="1" max="36500" step="1" inputmode="numeric" placeholder="Forever" aria-describedby="archive-days-help archive-days-impact">
+      <p class="danger-note safe" id="archive-days-impact" aria-live="polite"></p>
+      <div class="danger-confirm" id="archive-confirm" role="alert" hidden>
+        <p class="danger-note" id="archive-confirm-text"></p>
+        <div class="danger-actions"><button class="btn" type="button" id="archive-confirm-cancel">Cancel</button><button class="btn btn-danger" type="button" id="archive-confirm-ok"></button></div>
+      </div>
+    </div>
     <div class="settings-actions">
       <button class="btn" type="button" id="settings-reset">Use default folder</button>
       <span class="spacer"></span>
@@ -494,6 +545,18 @@
     </div>
   </form>
 </dialog>
+<dialog class="settings picker" id="terminal-picker" aria-labelledby="picker-title">
+  <form method="dialog">
+    <div class="settings-head"><h2 id="picker-title">Open sessions in which terminal?</h2><button class="icon-btn" type="button" data-picker-close aria-label="Close" data-icon="x"></button></div>
+    <p class="field-help">These are installed on your computer. You can change this later in Settings.</p>
+    <div class="picker-list" id="picker-list"></div>
+  </form>
+</dialog>
+<div class="notify-prompt" id="notify-prompt" role="region" aria-label="Notifications" hidden>
+  <span>Get a notification when a session finishes or asks you something?</span>
+  <button class="btn btn-primary" type="button" id="notify-on">Turn on</button>
+  <button class="btn" type="button" id="notify-later">Not now</button>
+</div>
 <noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
 
 <script>
@@ -528,6 +591,7 @@
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
     artifact: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>',
     pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
     alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   };
   const icon = (name, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -551,7 +615,7 @@
 
   const $ = (id) => document.getElementById(id);
   const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
-  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false, settings: null };
+  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false, settings: null, searchFilters: { project: '', time: 'any', from: '', to: '', who: '' } };
   try { state.showTools = localStorage.getItem('showTools') === 'true'; } catch {}
   state.pinned = new Set();
   try { state.pinned = new Set(JSON.parse(localStorage.getItem('pinnedSections') ?? '[]')); } catch {}
@@ -704,17 +768,49 @@
     return terms.length ? esc(text).replace(new RegExp(terms.join('|'), 'gi'), (found) => `<mark>${found}</mark>`) : esc(text);
   }
 
+  const TIME_RANGES = { any: ['Any time'], day: ['Past 24 hours', 1], week: ['Past week', 7], month: ['Past month', 30], custom: ['Custom dates…'] };
+  const WHO = [['', 'Anyone'], ['you', 'You'], ['claude', 'Claude']];
+  const searchKey = (query) => `${query}|${JSON.stringify(state.searchFilters)}`;
+  const filtersActive = () => Boolean(state.searchFilters.project || state.searchFilters.who || state.searchFilters.time !== 'any');
+
+  function searchUrl(query) {
+    const f = state.searchFilters;
+    const params = new URLSearchParams({ q: query });
+    if (f.project) params.set('project', f.project);
+    if (f.who) params.set('who', f.who);
+    const days = TIME_RANGES[f.time]?.[1];
+    if (days) params.set('from', new Date(Date.now() - days * 86400000).toISOString());
+    if (f.time === 'custom' && f.from) params.set('from', new Date(`${f.from}T00:00:00`).toISOString());
+    if (f.time === 'custom' && f.to) params.set('to', new Date(`${f.to}T23:59:59.999`).toISOString());
+    return `/api/search?${params}`;
+  }
+
+  function searchFiltersBar() {
+    const f = state.searchFilters;
+    const projects = (state.projects ?? []).map((p) => `<option value="${esc(p.id)}"${p.id === f.project ? ' selected' : ''}>${esc(baseName(p.path))}</option>`).join('');
+    return `<div class="search-filters" role="group" aria-label="Search filters">
+      <select data-search-filter="project" aria-label="Project"><option value="">All projects</option>${projects}</select>
+      <select data-search-filter="time" aria-label="When">${Object.entries(TIME_RANGES).map(([value, [label]]) => `<option value="${value}"${value === f.time ? ' selected' : ''}>${label}</option>`).join('')}</select>
+      ${f.time === 'custom' ? `<input type="date" data-search-filter="from" value="${esc(f.from)}" aria-label="From"><input type="date" data-search-filter="to" value="${esc(f.to)}" aria-label="To">` : ''}
+      <span class="seg" role="group" aria-label="Written by">${WHO.map(([value, label]) => `<button type="button" data-search-who="${value}" aria-pressed="${f.who === value}">${label}</button>`).join('')}</span>
+      ${filtersActive() ? '<button class="link-btn" type="button" data-action="reset-search-filters">Reset filters</button>' : ''}
+    </div>`;
+  }
+
   function renderSearch() {
     const query = search.value.trim();
     const result = state.search;
-    const head = (title, detail) => `<div class="page-head"><div><h1>${title}</h1><p>${detail}</p></div></div>`;
-    if (!result || result.query !== query || (result.loading && !result.data)) {
+    const head = (title, detail) => `<div class="page-head"><div><h1>${title}</h1><p>${detail}</p></div></div>${searchFiltersBar()}`;
+    if (!result || result.key !== searchKey(query) || (result.loading && !result.data)) {
       return `${head('Searching…', 'Looking through every conversation. The first search reads all your sessions and can take a few seconds.')}
         ${Array.from({ length: 3 }, () => '<div class="result-card"><div class="result-head"><span class="sk" style="height:13px;width:40%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:90%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:70%"></span></div></div>').join('')}`;
     }
-    if (result.error) return emptyState('alert', 'Search failed', esc(result.error.message), `<button class="btn" data-action="clear">Clear search</button>`);
+    if (result.error) return `${searchFiltersBar()}${emptyState('alert', 'Search failed', esc(result.error.message), `<button class="btn" data-action="clear">Clear search</button>`)}`;
     const { results, total, scanned, truncated } = result.data;
-    if (!results.length) return emptyState('search', 'No matches', `Nothing you or Claude said in ${plural(scanned, 'session')} matches “${esc(query)}”.`, '<button class="btn" data-action="clear">Clear search</button>');
+    if (!results.length) {
+      const reset = filtersActive() ? '<button class="btn" data-action="reset-search-filters">Reset filters</button>' : '<button class="btn" data-action="clear">Clear search</button>';
+      return `${head('No matches', `Searched ${plural(scanned, 'session')}`)}${emptyState('search', 'No matches', `Nothing ${state.searchFilters.who === 'you' ? 'you' : state.searchFilters.who === 'claude' ? 'Claude' : 'you or Claude'} said matches “${esc(query)}”${filtersActive() ? ' with these filters' : ''}.`, reset)}`;
+    }
     const groups = new Map();
     for (const match of results) {
       if (!groups.has(match.sessionId)) groups.set(match.sessionId, { ...match, matches: [] });
@@ -732,23 +828,24 @@
   }
 
   let searchTimer;
-  function scheduleSearch() {
+  function scheduleSearch(delay = 300) {
     clearTimeout(searchTimer);
     const query = search.value.trim();
     if (state.projectId || query.length < 2) return;
     searchTimer = setTimeout(async () => {
-      state.search = { query, loading: true, data: state.search?.query === query ? state.search.data : null };
+      const key = searchKey(query);
+      state.search = { key, loading: true, data: state.search?.key === key ? state.search.data : null };
       renderContent();
       try {
-        const data = await getJSON(`/api/search?q=${encodeURIComponent(query)}`);
-        if (search.value.trim() !== query) return;
-        state.search = { query, data };
+        const data = await getJSON(searchUrl(query));
+        if (searchKey(search.value.trim()) !== key) return;
+        state.search = { key, data };
       } catch (error) {
-        if (search.value.trim() !== query) return;
-        state.search = { query, error };
+        if (searchKey(search.value.trim()) !== key) return;
+        state.search = { key, error };
       }
       if (!state.projectId) renderContent();
-    }, 300);
+    }, delay);
   }
 
   function resumeButton(projectId, sessionId, label = 'Resume') {
@@ -769,7 +866,7 @@
         <div class="row" tabindex="0" role="button" data-nav data-key="recent:${esc(s.id)}" data-href="${esc(href)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
           <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta"><span class="chip chip-project" title="${esc(s.projectPath)}">${icon('folder', 12)}<span>${esc(baseName(s.projectPath))}</span></span>${branchChip(s)}${s.prs.map(prChip).join('')}</div>${lastLine(s)}</div></div>
           <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
-          <div class="c-idle">${isWorking(s) ? '<span class="working">Working…</span>' : `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`}</div>
+          <div class="c-idle">${idleCell(s, st)}</div>
           <div class="c-id">${resumeButton(s.projectId, s.id)}</div>
         </div>`;
     }).join('')}</div></section>`;
@@ -799,6 +896,18 @@
   }
 
   const isWorking = (s) => Boolean(s?.turnOpen) && Date.now() - Date.parse(s.lastActivity) < WORKING_MS;
+  const isWaiting = (s) => Boolean(s?.waitingFor) && isWorking(s);
+  const WAITING_LABEL = { question: 'Waiting for your answer', plan: 'Waiting for your approval' };
+
+  function idleCell(s, st) {
+    if (isWaiting(s)) return `<span class="waiting" title="${esc(s.waitingFor.text ?? WAITING_LABEL[s.waitingFor.kind])}">Needs you</span>`;
+    if (isWorking(s)) return '<span class="working">Working…</span>';
+    return `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`;
+  }
+
+  function archivedChip(s) {
+    return s.archived ? `<span class="chip chip-archived" title="Claude Code deleted this session. claude-gui kept a copy, so you can still read, search and resume it.">${icon('archive', 12)}<span>Archived</span></span>` : '';
+  }
 
   function worktreeChip(s) {
     if (!s.worktrees.length) return '';
@@ -830,13 +939,13 @@
   function sessionRow(s, project) {
     const st = status(s.lastActivity);
     const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
-    const meta = branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + skillsChip(s) + costChip(s) + folder;
+    const meta = archivedChip(s) + branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + skillsChip(s) + costChip(s) + folder;
     return `
       <div class="row" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
         <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div>${lastLine(s)}</div></div>
         <div class="c-mcp">${mcpChips(s.mcps, 2)}</div>
         <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
-        <div class="c-idle">${isWorking(s) ? '<span class="working">Working…</span>' : `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`}</div>
+        <div class="c-idle">${idleCell(s, st)}</div>
         <div class="c-id"><code title="${esc(s.id)}">${esc(s.id.slice(0, 8))}</code><button class="icon-btn sm" type="button" data-copy="${esc(s.id)}" data-label="Session ID" title="Copy session ID" aria-label="Copy session ID">${icon('copy', 14)}</button><button class="icon-btn sm" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}" title="Resume in a new terminal" aria-label="Resume in a new terminal">${icon('terminal', 14)}</button></div>
       </div>`;
   }
@@ -1106,7 +1215,8 @@
     closeTurn();
     if (isWorking(currentSession())) {
       const last = items.at(-1);
-      const doing = last?.kind === 'tool' && last.result === null ? `Running ${toolLabel(last.name)[0]}${last.summary ? ` · ${last.summary}` : ''}` : 'Thinking…';
+      const waitingFor = currentSession()?.waitingFor;
+      const doing = waitingFor ? `${WAITING_LABEL[waitingFor.kind]}${waitingFor.text && waitingFor.kind === 'question' ? `: ${waitingFor.text}` : ''}` : last?.kind === 'tool' && last.result === null ? `Running ${toolLabel(last.name)[0]}${last.summary ? ` · ${last.summary}` : ''}` : 'Thinking…';
       html += `<div class="msg-claude" aria-live="polite"><span class="claude-avatar">${icon('sparkles', 15)}</span><div class="turn"><div class="turn-head">Claude <span class="msg-time">working</span></div><div class="working-text"><span class="typing"><span></span><span></span><span></span></span><span>${esc(doing)}</span></div></div></div>`;
     }
     return html;
@@ -1139,10 +1249,10 @@
     return `
       <div class="section${pinClass('resume')}" data-section="resume">
         <div class="section-title"><span>Resume</span>${pinButton('resume')}</div>
-        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} Resume in terminal</button>
+        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} ${s.archived ? 'Restore and resume' : `Resume in ${esc(terminalLabel())}`}</button>
         <button class="btn-resume secondary" type="button" data-action="open-editor">${icon('code', 14)} Open in ${esc(editorLabel())}</button>
         <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
-        <div class="hint">Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.</div>
+        <div class="hint">${s.archived ? 'Claude Code deleted this session from its folder. claude-gui kept a copy: resuming puts it back, then opens it in a new terminal window.' : 'Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.'}</div>
       </div>
       <div class="section${pinClass('details')}" data-section="details">
         <div class="section-title"><span>Details</span>${pinButton('details')}</div>
@@ -1205,7 +1315,7 @@
     return `
       <div class="session-head">
         <h1 title="${esc(s.title)}">${esc(s.title)}</h1>
-        <div class="s-meta">${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
+        <div class="s-meta">${archivedChip(s)}${isWaiting(s) ? `<span class="pill waiting" title="${esc(s.waitingFor.text ?? '')}"><span class="dot recent"></span>${WAITING_LABEL[s.waitingFor.kind]}</span>` : isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
       </div>
       <div class="session-layout">
         <section class="chat-card" aria-label="Conversation">${renderChat()}<button class="jump" type="button" data-action="latest" hidden>${icon('arrow', 14)} Latest</button></section>
@@ -1342,15 +1452,83 @@
   const editorSelect = $('editor-select');
   const portInput = $('port-input');
   const openBrowserInput = $('open-browser');
+  const notificationsInput = $('notifications-input');
+  const archiveInput = $('archive-input');
+  const archiveDaysInput = $('archive-days');
+  archiveInput.addEventListener('change', () => { archiveDaysInput.disabled = !archiveInput.checked; });
+
+  /* Retention is the one setting that deletes data, so it says what Save would delete and asks first. */
+  const archiveImpact = $('archive-days-impact');
+  const archiveConfirm = $('archive-confirm');
+  let deleteConfirmed = false;
+  let impactTimer;
+  const daysValue = () => (archiveDaysInput.value.trim() === '' ? null : Number(archiveDaysInput.value));
+  const fetchImpact = (days) => getJSON(`/api/archive-preview?days=${days}`);
+  // "3 of them are", "1 of them is", "All of them are", "It is": the part of `expired` that `lastCopies` covers.
+  const someOf = (part, whole, one, many) => (part === whole ? (whole === 1 ? `It ${one}` : `All of them ${many}`) : `${part} of them ${part === 1 ? one : many}`);
+  const impactSentence = ({ expired, lastCopies }) => `Saving permanently deletes ${plural(expired, 'copy', 'copies')}.${lastCopies ? ` ${someOf(lastCopies, expired, 'is the last copy', 'are the last copies')} left, because Claude Code already deleted ${lastCopies === 1 ? 'that session' : 'those sessions'}.` : ''}`;
+
+  function showArchiveImpact(impact) {
+    archiveImpact.className = `danger-note${impact?.expired ? '' : ' safe'}`;
+    archiveImpact.textContent = !impact ? '' : impact.expired ? impactSentence(impact) : 'No copies are old enough to be deleted.';
+  }
+
+  function hideDeleteConfirm() {
+    archiveConfirm.hidden = true;
+    deleteConfirmed = false;
+  }
+
+  archiveDaysInput.addEventListener('input', () => {
+    hideDeleteConfirm();
+    clearTimeout(impactTimer);
+    const days = daysValue();
+    if (!Number.isInteger(days) || days < 1 || !state.settings?.archiveDir) return showArchiveImpact(null);
+    impactTimer = setTimeout(async () => {
+      const impact = await fetchImpact(days).catch(() => null);
+      if (daysValue() === days) showArchiveImpact(impact);
+    }, 250);
+  });
+  $('archive-confirm-cancel').addEventListener('click', () => {
+    hideDeleteConfirm();
+    archiveDaysInput.focus();
+  });
+  $('archive-confirm-ok').addEventListener('click', () => {
+    deleteConfirmed = true;
+    saveSettings(settingsChanges());
+  });
+  const notificationsBlocked = () => !('Notification' in window) || Notification.permission === 'denied';
   const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
+  const terminalSelect = $('terminal-select');
+  const currentTerminal = () => state.settings?.terminal ?? state.settings?.defaultTerminal;
+  // Named once you've picked one; until then Resume may still ask which to use.
+  const terminalLabel = () => (state.settings?.terminal && state.settings.terminals?.find((t) => t.id === state.settings.terminal)?.label) || 'terminal';
 
   function fillSettings(settings) {
     state.settings = settings;
     claudeDirInput.value = tilde(settings.claudeDir ?? '');
     editorSelect.innerHTML = settings.editors.map((editor) => `<option value="${esc(editor.id)}"${editor.id === settings.editor ? ' selected' : ''}>${esc(editor.label)}</option>`).join('');
+    const chosen = settings.terminal ?? settings.defaultTerminal;
+    // An older server (still running after an update) sends no terminal list.
+    terminalSelect.closest('form').querySelectorAll('[for="terminal-select"], #terminal-help, #terminal-select').forEach((el) => { el.hidden = !settings.terminals; });
+    terminalSelect.innerHTML = (settings.terminals ?? []).map((t) => `<option value="${esc(t.id)}"${t.id === chosen ? ' selected' : ''}${t.installed || t.id === chosen ? '' : ' disabled'}>${esc(t.label)}${t.installed ? '' : ' (not installed)'}</option>`).join('');
     portInput.value = settings.port ?? '';
     portInput.placeholder = String(settings.defaultPort);
     openBrowserInput.checked = settings.openBrowser;
+    notificationsInput.checked = settings.notifications;
+    $('notifications-help').textContent = !('Notification' in window)
+      ? 'This browser doesn\'t support desktop notifications.'
+      : Notification.permission === 'denied'
+        ? 'Your browser is blocking notifications for this page. Allow them in the site settings to turn this on.'
+        : `Desktop notifications while this dashboard is open in a browser tab, even in the background.${Notification.permission === 'default' ? ' Your browser will ask you to allow them.' : ''}`;
+    archiveInput.checked = settings.archive;
+    archiveInput.disabled = !settings.archiveDir;
+    archiveDaysInput.value = settings.archiveDays ?? '';
+    archiveDaysInput.disabled = !settings.archive;
+    hideDeleteConfirm();
+    showArchiveImpact(null);
+    $('archive-help').innerHTML = settings.archiveDir
+      ? `Claude Code deletes sessions after 30 days by default. claude-gui keeps a compressed copy in <code>${esc(tilde(settings.archiveDir))}</code>, readable only by you, so you can still search and resume them.`
+      : 'archiveDir' in settings ? 'Not available in this mode.' : 'Restart claude-gui to use this: the running version is older than this page.';
     const nextPort = settings.port ?? settings.defaultPort;
     $('port-help').textContent = `Leave empty to use ${settings.defaultPort}. Changes apply the next time you start the dashboard${nextPort === settings.runningPort ? '' : `; it's running on ${settings.runningPort} right now`}.`;
     const note = settings.source === 'flag' ? ' Saving here replaces it until you start the dashboard with the flag again.' : '';
@@ -1374,7 +1552,12 @@
     const changes = {};
     if (claudeDirInput.value.trim() !== tilde(state.settings?.claudeDir ?? '')) changes.claudeDir = claudeDirInput.value;
     if (editorSelect.value !== state.settings?.editor) changes.editor = editorSelect.value;
+    if (state.settings?.terminals && terminalSelect.value !== currentTerminal()) changes.terminal = terminalSelect.value;
     if (openBrowserInput.checked !== state.settings?.openBrowser) changes.openBrowser = openBrowserInput.checked;
+    if (notificationsInput.checked !== state.settings?.notifications) changes.notifications = notificationsInput.checked;
+    if (!archiveInput.disabled && archiveInput.checked !== state.settings?.archive) changes.archive = archiveInput.checked;
+    const archiveDays = archiveDaysInput.value.trim() === '' ? null : Number(archiveDaysInput.value);
+    if (!archiveDaysInput.disabled && archiveDays !== (state.settings?.archiveDays ?? null)) changes.archiveDays = archiveDays;
     const port = portInput.value.trim() === '' ? null : Number(portInput.value);
     if (port !== (state.settings?.port ?? null)) changes.port = port;
     return changes;
@@ -1382,10 +1565,29 @@
 
   async function saveSettings(changes) {
     if (!Object.keys(changes).length) return settingsDialog.close();
+    if (Number.isInteger(changes.archiveDays) && !deleteConfirmed) {
+      const impact = await fetchImpact(changes.archiveDays).catch(() => null);
+      if (impact?.expired) {
+        showArchiveImpact(impact);
+        $('archive-confirm-text').textContent = `Delete ${plural(impact.expired, 'archived session', 'archived sessions')} for good? ${impact.lastCopies ? `${someOf(impact.lastCopies, impact.expired, 'exists', 'exist')} nowhere else. ` : ''}This can't be undone.`;
+        $('archive-confirm-ok').textContent = `Delete ${plural(impact.expired, 'copy', 'copies')} and save`;
+        archiveConfirm.hidden = false;
+        archiveConfirm.scrollIntoView({ block: 'nearest' });
+        return $('archive-confirm-ok').focus();
+      }
+    }
+    deleteConfirmed = false;
     const buttons = settingsDialog.querySelectorAll('.settings-actions .btn');
     buttons.forEach((button) => { button.disabled = true; });
     settingsError.hidden = true;
     try {
+      // Asked while handling the Save click, which browsers require before they show the permission prompt.
+      if (changes.notifications === true && !notificationsBlocked() && Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') {
+        throw new Error('Notifications are blocked for this page. Allow them in your browser\'s site settings, then try again.');
+      }
+      if (changes.notifications === true && notificationsBlocked()) {
+        throw new Error('Notifications are blocked for this page. Allow them in your browser\'s site settings, then try again.');
+      }
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' },
@@ -1396,9 +1598,13 @@
       const folderChanged = body.projectsDir !== state.settings?.projectsDir;
       state.settings = body;
       settingsDialog.close();
+      connectEvents();
+      promptForNotifications();
       if (!folderChanged) {
         showToast('Settings saved');
-        return renderContent();
+        renderContent();
+        if ('archive' in changes || 'archiveDays' in changes) await refresh();
+        return;
       }
       showToast(`Now reading ${tilde(body.projectsDir)}`);
       Object.assign(state, { projects: null, recent: null, sessions: null, messages: null, search: null });
@@ -1408,7 +1614,8 @@
     } catch (error) {
       settingsError.textContent = error.message;
       settingsError.hidden = false;
-      claudeDirInput.focus();
+      if (!('claudeDir' in changes)) settingsError.scrollIntoView({ block: 'nearest' });
+      else claudeDirInput.focus();
     } finally {
       buttons.forEach((button) => { button.disabled = false; });
     }
@@ -1424,8 +1631,102 @@
   });
   getJSON('/api/settings').then((settings) => {
     state.settings = settings;
+    connectEvents();
+    promptForNotifications();
     if (state.sessionId) renderContent();
   }).catch(() => {});
+
+  /* ---------- Notifications ---------- */
+
+  const NOTIFY_TITLE = { finished: 'Claude finished', question: 'Claude has a question', plan: 'Plan ready for review' };
+  let events = null;
+
+  function connectEvents() {
+    const wanted = state.settings?.notifications && 'Notification' in window && Notification.permission === 'granted';
+    if (!wanted) {
+      events?.close();
+      events = null;
+      return;
+    }
+    if (events) return;
+    events = new EventSource('/api/events');
+    events.onmessage = (message) => {
+      let event;
+      try { event = JSON.parse(message.data); } catch { return; }
+      showNotification(event);
+      refresh();
+    };
+  }
+
+  function showNotification(event) {
+    // Skip it when you're already looking at that session.
+    if (document.visibilityState === 'visible' && document.hasFocus() && state.sessionId === event.sessionId) return;
+    // The tag lets the browser merge copies from several open dashboard tabs.
+    const notification = new Notification(`${NOTIFY_TITLE[event.type] ?? 'Claude Code'}: ${event.title}`, { body: event.detail ?? '', tag: `${event.sessionId}:${event.type}` });
+    notification.onclick = () => {
+      window.focus();
+      location.hash = `#/p/${encodeURIComponent(event.projectId)}/s/${encodeURIComponent(event.sessionId)}`;
+      notification.close();
+    };
+  }
+
+  // Notifications are on by default, but browsers only ask for permission after a click, so ask with a button.
+  function promptForNotifications() {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('notificationPrompt') === 'dismissed'; } catch {}
+    $('notify-prompt').hidden = !(state.settings?.notifications && 'Notification' in window && Notification.permission === 'default' && !dismissed);
+  }
+  $('notify-on').addEventListener('click', async () => {
+    $('notify-prompt').hidden = true;
+    if (await Notification.requestPermission() === 'granted') {
+      connectEvents();
+      showToast('Notifications are on');
+    } else {
+      showToast('Your browser blocked notifications. You can allow them in its site settings.', true);
+    }
+  });
+  $('notify-later').addEventListener('click', () => {
+    try { localStorage.setItem('notificationPrompt', 'dismissed'); } catch {}
+    $('notify-prompt').hidden = true;
+  });
+
+  /* ---------- Terminal choice ---------- */
+
+  // The first Resume asks which terminal to use when more than one is installed, and remembers the answer.
+  function chooseTerminal() {
+    const installed = state.settings?.terminals?.filter((t) => t.installed) ?? [];
+    if (!state.settings || state.settings.terminal || installed.length < 2) return Promise.resolve(true);
+    const picker = $('terminal-picker');
+    $('picker-list').innerHTML = installed.map((t) => `<button class="picker-option" type="button" data-terminal="${esc(t.id)}">${icon('terminal', 16)}${esc(t.label)}</button>`).join('');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = async (id) => {
+        if (settled) return;
+        settled = true;
+        picker.close();
+        if (!id) return resolve(false);
+        try {
+          const response = await fetch('/api/settings', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' }, body: JSON.stringify({ terminal: id }) });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || response.statusText);
+          state.settings = body;
+          if (state.sessionId) renderSessionPreservingView();
+          resolve(true);
+        } catch (error) {
+          showToast(`Could not save the terminal: ${error.message}`, true);
+          resolve(false);
+        }
+      };
+      picker.onclick = (event) => {
+        const option = event.target.closest('[data-terminal]');
+        if (option) finish(option.dataset.terminal);
+        else if (event.target.closest('[data-picker-close]') || event.target === picker) finish(null);
+      };
+      picker.oncancel = () => finish(null);
+      picker.showModal();
+      picker.querySelector('.picker-option')?.focus();
+    });
+  }
 
   async function openInEditor(path, button) {
     button.disabled = true;
@@ -1539,6 +1840,7 @@
       && !window.confirm('Claude may still be running in this session. Opening it again starts a second copy of the same conversation. Continue?')) {
       return;
     }
+    if (!(await chooseTerminal())) return;
     button.disabled = true;
     try {
       const response = await fetch('/api/resume', {
@@ -1548,7 +1850,8 @@
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || response.statusText);
-      showToast('Opened in a new terminal window');
+      showToast(body.restored ? `Restored the session and opened it in a new ${terminalLabel()} window` : `Opened in a new ${terminalLabel()} window`);
+      if (body.restored) refresh();
     } catch (error) {
       showToast(`Could not open a terminal: ${error.message}`, true);
     } finally {
@@ -1570,8 +1873,17 @@
       copy(copyButton.dataset.copy, copyButton.dataset.label || 'Copied', copyButton);
       return;
     }
+    const who = event.target.closest('[data-search-who]');
+    if (who) {
+      state.searchFilters.who = who.dataset.searchWho;
+      return scheduleSearch(0);
+    }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'retry') return refresh();
+    if (action === 'reset-search-filters') {
+      state.searchFilters = { project: '', time: 'any', from: '', to: '', who: '' };
+      return scheduleSearch(0);
+    }
     if (action === 'expand-chips') {
       const meta = event.target.closest('.s-meta');
       meta.classList.add('expanded');
@@ -1634,6 +1946,11 @@
     if (event.target.matches?.('details.file-diff')) fillFileDiff(event.target);
   }, true);
   content.addEventListener('change', (event) => {
+    const filter = event.target.dataset?.searchFilter;
+    if (filter) {
+      state.searchFilters[filter] = event.target.value;
+      return scheduleSearch(0);
+    }
     if (event.target.id !== 'tools-toggle') return;
     state.showTools = event.target.checked;
     try { localStorage.setItem('showTools', String(state.showTools)); } catch {}
@@ -1665,7 +1982,7 @@
   }
 
   document.addEventListener('keydown', (event) => {
-    if (settingsDialog.open) return;
+    if (settingsDialog.open || $('terminal-picker').open) return;
     const typing = event.target.matches('input, textarea');
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
