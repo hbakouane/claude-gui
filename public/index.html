@@ -353,6 +353,28 @@
   .btn:hover { border-color: var(--border-strong); background: var(--hover); }
   .sk { border-radius: 6px; background: linear-gradient(90deg, var(--hover) 25%, var(--active) 37%, var(--hover) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
 
+  .settings { width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+  .settings::backdrop { background: rgba(12, 10, 9, .42); backdrop-filter: blur(2px); }
+  .settings form { display: grid; gap: 10px; padding: 18px 22px 22px; }
+  .settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .settings h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
+  .field-label { font-size: 14px; font-weight: 600; }
+  .field-help, .field-meta { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+  .field-meta { color: var(--text-3); }
+  .field-input { height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); font: 13px var(--mono); }
+  .field-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field-error { margin: 0; padding: 9px 12px; border-radius: 8px; background: rgba(220, 38, 38, .08); color: #dc2626; font-size: 13px; }
+  .field-sep { height: 1px; margin: 8px 0; background: var(--border); }
+  select.field-input { font: 14px var(--sans); }
+  .field-check { display: flex; align-items: center; gap: 9px; margin-top: 4px; font-size: 14px; cursor: pointer; }
+  .field-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+  .btn-resume.secondary { width: 100%; justify-content: center; height: 36px; margin-bottom: 10px; font-size: 13px; }
+  .settings-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .settings-actions .btn { margin-top: 0; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn[hidden] { display: none; }
   .toast { position: fixed; left: 50%; bottom: 28px; z-index: 40; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 10px); transition: opacity .18s, transform .18s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
   .toast svg { color: var(--green); }
@@ -440,12 +462,38 @@
       </label>
       <button class="icon-btn bordered refresh" id="refresh-btn" type="button" aria-label="Refresh" title="Refresh" data-icon="refresh"></button>
       <button class="icon-btn bordered" id="theme-btn" type="button"></button>
+      <button class="icon-btn bordered" id="settings-btn" type="button" aria-label="Settings" title="Settings" data-icon="settings"></button>
     </header>
     <div class="content" id="content"></div>
   </div>
 </div>
 <div class="backdrop" id="backdrop"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<dialog class="settings" id="settings" aria-labelledby="settings-title">
+  <form id="settings-form" novalidate>
+    <div class="settings-head"><h2 id="settings-title">Settings</h2><button class="icon-btn" type="button" id="settings-close" aria-label="Close settings" data-icon="x"></button></div>
+    <label class="field-label" for="claude-dir">Claude folder</label>
+    <p class="field-help" id="claude-dir-help">The folder where Claude Code keeps its data. The dashboard reads the <code>projects</code> folder inside it.</p>
+    <input class="field-input" id="claude-dir" type="text" placeholder="~/.claude" autocomplete="off" spellcheck="false" aria-describedby="claude-dir-help settings-meta">
+    <p class="field-error" id="settings-error" role="alert" hidden></p>
+    <p class="field-meta" id="settings-meta"></p>
+    <div class="field-sep"></div>
+    <label class="field-label" for="editor-select">Editor</label>
+    <p class="field-help">Used by the “Open in editor” buttons on session pages.</p>
+    <select class="field-input" id="editor-select"></select>
+    <div class="field-sep"></div>
+    <label class="field-label" for="port-input">Port</label>
+    <p class="field-help" id="port-help"></p>
+    <input class="field-input" id="port-input" type="number" min="1024" max="65535" step="1" inputmode="numeric">
+    <label class="field-check"><input type="checkbox" id="open-browser"> Open the browser when the dashboard starts</label>
+    <div class="settings-actions">
+      <button class="btn" type="button" id="settings-reset">Use default folder</button>
+      <span class="spacer"></span>
+      <button class="btn" type="button" id="settings-cancel">Cancel</button>
+      <button class="btn btn-primary" type="submit" id="settings-save">Save</button>
+    </div>
+  </form>
+</dialog>
 <noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
 
 <script>
@@ -458,9 +506,11 @@
     folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
     refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
     external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
     terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+    code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
     layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
@@ -501,7 +551,7 @@
 
   const $ = (id) => document.getElementById(id);
   const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
-  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false };
+  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false, settings: null };
   try { state.showTools = localStorage.getItem('showTools') === 'true'; } catch {}
   state.pinned = new Set();
   try { state.pinned = new Set(JSON.parse(localStorage.getItem('pinnedSections') ?? '[]')); } catch {}
@@ -1090,6 +1140,7 @@
       <div class="section${pinClass('resume')}" data-section="resume">
         <div class="section-title"><span>Resume</span>${pinButton('resume')}</div>
         <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} Resume in terminal</button>
+        <button class="btn-resume secondary" type="button" data-action="open-editor">${icon('code', 14)} Open in ${esc(editorLabel())}</button>
         <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
         <div class="hint">Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.</div>
       </div>
@@ -1115,7 +1166,7 @@
       </div>
       <div class="section${pinClass('worktrees')}" data-section="worktrees">
         <div class="section-title"><span>Git worktrees</span><span>${s.worktrees.length}</span>${pinButton('worktrees')}</div>
-        ${s.worktrees.length ? `<div class="list">${s.worktrees.map((w) => `<div class="list-item"><span class="pr-icon" style="color:var(--blue)">${icon('layers', 16)}</span><span class="grow"><span class="mono" title="${esc(w.path)}">${esc(tilde(w.path))}</span><div class="muted" style="font-size:12px">${w.exists ? 'Still on disk' : 'Removed'}</div></span>${w.exists ? copyBtn(w.path, 'Worktree path') : ''}</div>`).join('')}</div>` : '<div class="none">This session did not create or enter a git worktree.</div>'}
+        ${s.worktrees.length ? `<div class="list">${s.worktrees.map((w) => `<div class="list-item"><span class="pr-icon" style="color:var(--blue)">${icon('layers', 16)}</span><span class="grow"><span class="mono" title="${esc(w.path)}">${esc(tilde(w.path))}</span><div class="muted" style="font-size:12px">${w.exists ? 'Still on disk' : 'Removed'}</div></span>${w.exists ? `<button class="icon-btn sm" type="button" data-action="open-editor" data-path="${esc(w.path)}" title="Open in ${esc(editorLabel())}" aria-label="Open this worktree in ${esc(editorLabel())}">${icon('code', 14)}</button>${copyBtn(w.path, 'Worktree path')}` : ''}</div>`).join('')}</div>` : '<div class="none">This session did not create or enter a git worktree.</div>'}
       </div>
       <div class="section${pinClass('skills')}" data-section="skills">
         <div class="section-title"><span>Skills used</span><span>${(s.skills ?? []).length}</span>${pinButton('skills')}</div>
@@ -1276,6 +1327,124 @@
     else tick();
   }
 
+  /* ---------- Settings ---------- */
+
+  const SETTINGS_SOURCE = {
+    default: 'the default location',
+    env: 'the CLAUDE_CONFIG_DIR environment variable',
+    settings: 'this setting',
+    flag: 'the --claude-dir flag',
+  };
+  const settingsDialog = $('settings');
+  const claudeDirInput = $('claude-dir');
+  const settingsError = $('settings-error');
+
+  const editorSelect = $('editor-select');
+  const portInput = $('port-input');
+  const openBrowserInput = $('open-browser');
+  const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
+
+  function fillSettings(settings) {
+    state.settings = settings;
+    claudeDirInput.value = tilde(settings.claudeDir ?? '');
+    editorSelect.innerHTML = settings.editors.map((editor) => `<option value="${esc(editor.id)}"${editor.id === settings.editor ? ' selected' : ''}>${esc(editor.label)}</option>`).join('');
+    portInput.value = settings.port ?? '';
+    portInput.placeholder = String(settings.defaultPort);
+    openBrowserInput.checked = settings.openBrowser;
+    const nextPort = settings.port ?? settings.defaultPort;
+    $('port-help').textContent = `Leave empty to use ${settings.defaultPort}. Changes apply the next time you start the dashboard${nextPort === settings.runningPort ? '' : `; it's running on ${settings.runningPort} right now`}.`;
+    const note = settings.source === 'flag' ? ' Saving here replaces it until you start the dashboard with the flag again.' : '';
+    $('settings-meta').innerHTML = `Reading <code>${esc(tilde(settings.projectsDir))}</code>, set by ${SETTINGS_SOURCE[settings.source] ?? settings.source}.${note}${settings.configFile ? ` Saved in <code>${esc(tilde(settings.configFile))}</code>.` : ''}`;
+    $('settings-reset').hidden = !['settings', 'flag'].includes(settings.source);
+  }
+
+  async function openSettings() {
+    settingsError.hidden = true;
+    try {
+      fillSettings(await getJSON('/api/settings'));
+    } catch (error) {
+      return showToast(`Could not load settings: ${error.message}`, true);
+    }
+    settingsDialog.showModal();
+    claudeDirInput.focus();
+    claudeDirInput.select();
+  }
+
+  function settingsChanges() {
+    const changes = {};
+    if (claudeDirInput.value.trim() !== tilde(state.settings?.claudeDir ?? '')) changes.claudeDir = claudeDirInput.value;
+    if (editorSelect.value !== state.settings?.editor) changes.editor = editorSelect.value;
+    if (openBrowserInput.checked !== state.settings?.openBrowser) changes.openBrowser = openBrowserInput.checked;
+    const port = portInput.value.trim() === '' ? null : Number(portInput.value);
+    if (port !== (state.settings?.port ?? null)) changes.port = port;
+    return changes;
+  }
+
+  async function saveSettings(changes) {
+    if (!Object.keys(changes).length) return settingsDialog.close();
+    const buttons = settingsDialog.querySelectorAll('.settings-actions .btn');
+    buttons.forEach((button) => { button.disabled = true; });
+    settingsError.hidden = true;
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-sessions-dashboard' },
+        body: JSON.stringify(changes),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || response.statusText);
+      const folderChanged = body.projectsDir !== state.settings?.projectsDir;
+      state.settings = body;
+      settingsDialog.close();
+      if (!folderChanged) {
+        showToast('Settings saved');
+        return renderContent();
+      }
+      showToast(`Now reading ${tilde(body.projectsDir)}`);
+      Object.assign(state, { projects: null, recent: null, sessions: null, messages: null, search: null });
+      if (location.hash && location.hash !== '#/') location.hash = '#/';
+      render();
+      await refresh();
+    } catch (error) {
+      settingsError.textContent = error.message;
+      settingsError.hidden = false;
+      claudeDirInput.focus();
+    } finally {
+      buttons.forEach((button) => { button.disabled = false; });
+    }
+  }
+
+  $('settings-btn').addEventListener('click', openSettings);
+  $('settings-close').addEventListener('click', () => settingsDialog.close());
+  $('settings-cancel').addEventListener('click', () => settingsDialog.close());
+  $('settings-reset').addEventListener('click', () => saveSettings({ claudeDir: null }));
+  $('settings-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    saveSettings(settingsChanges());
+  });
+  getJSON('/api/settings').then((settings) => {
+    state.settings = settings;
+    if (state.sessionId) renderContent();
+  }).catch(() => {});
+
+  async function openInEditor(path, button) {
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/open-editor', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-sessions-dashboard' },
+        body: JSON.stringify({ projectId: state.projectId, sessionId: state.sessionId, path: path ?? null }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || response.statusText);
+      showToast(`Opened ${tilde(body.opened)} in ${editorLabel()}`);
+    } catch (error) {
+      showToast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   /* ---------- Routing ---------- */
 
   function parseRoute() {
@@ -1410,6 +1579,10 @@
       return event.target.closest('.chip-more').remove();
     }
     if (action === 'latest') return chatBox()?.scrollTo({ top: chatBox().scrollHeight, behavior: 'smooth' });
+    if (action === 'open-editor') {
+      const button = event.target.closest('[data-action]');
+      return openInEditor(button.dataset.path, button);
+    }
     if (action === 'pin') {
       const button = event.target.closest('[data-action]');
       const key = button.dataset.section;
@@ -1492,6 +1665,7 @@
   }
 
   document.addEventListener('keydown', (event) => {
+    if (settingsDialog.open) return;
     const typing = event.target.matches('input, textarea');
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
