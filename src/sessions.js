@@ -23,9 +23,13 @@ export async function listProjects(root) {
       return null;
     }
     const newest = files.reduce((a, b) => (b.mtimeMs > a.mtimeMs ? b : a));
+    const path = await firstCwd(files);
+    if (!path) {
+      return null;
+    }
     return {
       id,
-      path: (await firstCwd(files)) ?? id,
+      path,
       sessionCount: files.length,
       lastActivity: new Date(newest.mtimeMs).toISOString(),
     };

@@ -122,7 +122,7 @@ describe('parseSession', () => {
 });
 
 describe('listProjects', () => {
-  it('lists projects by real folder path, newest first, hiding temp folders and empty folders', async () => {
+  it('lists projects by real folder path, newest first, hiding temp, empty and unreadable folders', async () => {
     const projectsDir = await mkdtemp(join(tmpdir(), 'csd-projects-'));
     const previousRoot = root;
     root = projectsDir;
@@ -134,6 +134,7 @@ describe('listProjects', () => {
       await writeSession('-private-var-folders-x', 'd', lines({ type: 'user', cwd: '/private/var/folders/x/T/tmp', message: { content: 'hi' } }));
       await writeSession('-tmp-x', 'e', lines({ type: 'user', cwd: '/tmp/x', message: { content: 'hi' } }));
       await mkdir(join(projectsDir, '-Users-me-empty'));
+      await writeSession('-Users-me-unreadable', 'f', lines({ type: 'mode', mode: 'normal' }));
 
       const projects = await listProjects(projectsDir);
 
