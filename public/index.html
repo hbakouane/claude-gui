@@ -546,7 +546,6 @@
 
   function renderDrawer() {
     const s = currentSession();
-    shell.classList.toggle('is-drawer-open', Boolean(s));
     document.body.classList.toggle('is-drawer-open', Boolean(s));
     if (!s) return;
     const st = status(s.lastActivity);
@@ -654,7 +653,7 @@
     const wasOpen = Boolean(state.sessionId);
     state.projectId = projectId;
     state.sessionId = sessionId;
-    shell.classList.remove('nav-open');
+    document.body.classList.remove('nav-open');
     if (projectChanged) {
       state.sessions = null;
       state.sessionsError = null;
@@ -738,8 +737,8 @@
 
   content.addEventListener('click', handleClick);
   drawer.addEventListener('click', handleClick);
-  $('backdrop').addEventListener('click', () => (state.sessionId ? closeDrawer() : shell.classList.remove('nav-open')));
-  $('menu-btn').addEventListener('click', () => shell.classList.toggle('nav-open'));
+  $('backdrop').addEventListener('click', () => (state.sessionId ? closeDrawer() : document.body.classList.remove('nav-open')));
+  $('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
   $('refresh-btn').addEventListener('click', refresh);
   search.addEventListener('input', renderContent);
   window.addEventListener('hashchange', applyRoute);
@@ -764,7 +763,7 @@
     }
     if (event.key === 'Escape') {
       if (state.sessionId) return closeDrawer();
-      if (shell.classList.contains('nav-open')) return shell.classList.remove('nav-open');
+      if (document.body.classList.contains('nav-open')) return document.body.classList.remove('nav-open');
       if (typing && search.value) {
         search.value = '';
         return renderContent();
