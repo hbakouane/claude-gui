@@ -14,6 +14,8 @@ For each session it shows:
 - MCP servers used
 - Session ID, with a copy button
 
+Click a session to open its page. It shows the full conversation between you and Claude: replies rendered as markdown, tool calls you can expand to see their input and output, and slash commands. Next to it is a ready-to-copy `claude --resume` command. Open pages refresh every 30 seconds, so you can watch a running session.
+
 ## Usage
 
 ```sh
