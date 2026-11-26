@@ -205,6 +205,6 @@ test/               Tests, using Node's built-in test runner
 
 ## License
 
-[MIT](LICENSE) © Haytam Bakouane
+[MIT](LICENSE) © [Haytam Bakouane](https://haytambakouane.com/)
 
 claude-gui is an independent project. It isn't affiliated with or endorsed by Anthropic. Claude is a trademark of Anthropic, PBC.

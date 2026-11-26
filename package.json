@@ -2,6 +2,10 @@
   "name": "claude-gui",
   "version": "0.1.0",
   "description": "A local dashboard for your Claude Code history: search every conversation, see what each session changed and cost, and resume any of them in one click.",
+  "author": {
+    "name": "Haytam Bakouane",
+    "url": "https://haytambakouane.com/"
+  },
   "homepage": "https://github.com/hbakouane/claude-gui#readme",
   "repository": {
     "type": "git",
