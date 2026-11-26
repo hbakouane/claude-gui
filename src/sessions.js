@@ -8,6 +8,7 @@ const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
 const MCP_TOOL = /^mcp__(.+?)__/;
 const TASK_SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
 const TITLE_LENGTH = 80;
+const PREVIEW_LENGTH = 200;
 const PARALLEL_FILES = 8;
 const WORKTREE_ADD = /(?:^|[;&|(\n]|\$\()\s*git\s+(?:-C\s+\S+\s+)?worktree\s+add\b([^;&|\n]*)/g;
 const SHELL_ASSIGNMENT = /(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_]\w*)=("[^"]*"|'[^']*'|[^\s;&|)]+)/g;
@@ -70,6 +71,8 @@ export async function parseSession(file) {
   let title = null;
   let slugTitle = null;
   let firstPrompt = null;
+  let lastPrompt = null;
+  let lastReply = null;
   let cwd = null;
   let gitBranch = null;
   let lastTimestamp = 0;
@@ -148,6 +151,18 @@ export async function parseSession(file) {
     if (firstPrompt === null && event.type === 'user' && !event.isMeta && !event.isSidechain) {
       firstPrompt = promptText(event.message?.content);
     }
+    if (event.type === 'user' && !event.isMeta && !event.isSidechain) {
+      const prompt = promptText(event.message?.content);
+      if (prompt && !prompt.startsWith('[Request interrupted')) {
+        lastPrompt = truncate(prompt, PREVIEW_LENGTH);
+      }
+    }
+    if (event.type === 'assistant' && !event.isSidechain && Array.isArray(event.message?.content)) {
+      const reply = event.message.content.findLast((block) => block?.type === 'text' && block.text?.trim())?.text;
+      if (reply) {
+        lastReply = truncate(reply, PREVIEW_LENGTH);
+      }
+    }
   }
 
   const session = {
@@ -159,6 +174,8 @@ export async function parseSession(file) {
     prs: [...prs.values()],
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     artifacts: [...artifacts.values()],
+    lastPrompt,
+    lastReply,
     turnOpen,
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
@@ -263,13 +280,13 @@ function promptText(content, raw = false) {
   return trimmed && (raw || !trimmed.startsWith('<')) ? trimmed : null;
 }
 
-function truncate(text) {
+function truncate(text, limit = TITLE_LENGTH) {
   if (!text) {
     return null;
   }
-  const oneLine = text.replace(/\s+/g, ' ');
+  const oneLine = text.replace(/\s+/g, ' ').trim();
 
-  return oneLine.length > TITLE_LENGTH ? `${oneLine.slice(0, TITLE_LENGTH - 1)}…` : oneLine;
+  return oneLine.length > limit ? `${oneLine.slice(0, limit - 1)}…` : oneLine;
 }
 
 function safeParse(line) {

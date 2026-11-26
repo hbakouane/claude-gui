@@ -67,6 +67,8 @@ describe('parseSession', () => {
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       mcps: ['claude_ai_Linear', 'supabase'],
       artifacts: [{ url: 'https://claude.ai/code/artifact/abc', name: 'report', change: 'created', version: 1 }],
+      lastPrompt: 'Fix the login bug please',
+      lastReply: null,
       turnOpen: false,
       lastActivity: '2026-11-20T11:31:00.000Z',
     });
@@ -98,6 +100,28 @@ describe('parseSession', () => {
     ));
 
     assert.equal((await parseSession(file)).title, 'build-portfolio-site');
+  });
+
+  it('records the last real prompt and the last reply as one-line previews', async () => {
+    const file = await writeSession('-previews', 'stopped', lines(
+      { type: 'user', message: { content: 'First question' } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'First answer' }] } },
+      { type: 'user', message: { content: `Second   question\nwith ${'detail '.repeat(60)}` } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Looking.' }, { type: 'tool_use', id: 't', name: 'Bash', input: {} }] } },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'output' }] } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Draft' }, { type: 'text', text: 'Final answer' }] } },
+      { type: 'assistant', isSidechain: true, message: { content: [{ type: 'text', text: 'subagent chatter' }] } },
+      { type: 'user', isMeta: true, message: { content: 'Caveat: hidden' } },
+      { type: 'user', message: { content: '<local-command-stdout>noise</local-command-stdout>' } },
+      { type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } },
+    ));
+
+    const { lastPrompt, lastReply } = await parseSession(file);
+
+    assert.equal(lastPrompt.length, 200);
+    assert.ok(lastPrompt.startsWith('Second question with detail'));
+    assert.ok(lastPrompt.endsWith('…'));
+    assert.equal(lastReply, 'Final answer');
   });
 
   it('uses a placeholder title and the file time when the session has neither', async () => {
