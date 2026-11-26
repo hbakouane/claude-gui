@@ -1,6 +1,9 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
+import { isAbsolute, join } from 'node:path';
+import { DEFAULT_PORT, expandHome, isValidPort, MIN_PORT, readConfig, resolveClaudeDir, writeConfig } from './config.js';
+import { DEFAULT_EDITOR, EDITORS } from './editor.js';
 import { launch as spawnTerminal, terminalCommand } from './resume.js';
 import { findSession, listProjects, listRecent, listSessions, readConversation, searchSessions } from './sessions.js';
 
@@ -11,10 +14,15 @@ const MESSAGES_ROUTE = /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/messages$/
 const MAX_RECENT_HOURS = 168;
 const MAX_BODY_BYTES = 10_000;
 const MAX_QUERY_LENGTH = 200;
+const MAX_PATH_LENGTH = 1000;
+const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port'];
 export const RESUME_HEADER = 'claude-sessions-dashboard';
 
-export function createServer({ root, terminal = 'terminal', platform = process.platform, launch = spawnTerminal }) {
+export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal }) {
+  const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR };
+
   return createHttpServer(async (req, res) => {
+    const { root } = settings;
     // Session files are private; rejecting foreign Host headers blocks DNS-rebinding reads from other sites.
     if (!LOCAL_HOSTS.has((req.headers.host ?? '').replace(/:\d+$/, ''))) {
       return send(res, 403, { error: 'Forbidden' });
@@ -36,6 +44,9 @@ export function createServer({ root, terminal = 'terminal', platform = process.p
       }
       if (pathname === '/api/search') {
         return send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH)));
+      }
+      if (pathname === '/api/settings') {
+        return await updateSettings(req, res, { settings, configFile, env });
       }
       if (pathname === '/api/resume') {
         return await resume(req, res, { root, terminal, platform, launch });
@@ -77,6 +88,96 @@ async function resume(req, res, { root, terminal, platform, launch }) {
   await launch(command, args);
 
   return send(res, 200, { opened: true });
+}
+
+async function updateSettings(req, res, { settings, configFile, env }) {
+  if (req.method === 'GET') {
+    return send(res, 200, await describe(settings, configFile, req));
+  }
+  if (req.method !== 'POST') {
+    return send(res, 405, { error: 'Use GET or POST' });
+  }
+  if (req.headers['x-requested-with'] !== RESUME_HEADER) {
+    return send(res, 400, { error: 'Missing X-Requested-With header' });
+  }
+  if (!configFile) {
+    return send(res, 409, { error: 'Settings can\'t be saved in this mode' });
+  }
+  const body = await readJson(req);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return send(res, 400, { error: 'Send a JSON object of settings' });
+  }
+  const unknown = Object.keys(body).find((key) => !SETTING_KEYS.includes(key));
+  if (unknown) {
+    return send(res, 400, { error: `Unknown setting: ${unknown}` });
+  }
+  const config = await readConfig(configFile);
+  let folder = null;
+  if ('claudeDir' in body) {
+    if (body.claudeDir !== null && typeof body.claudeDir !== 'string') {
+      return send(res, 400, { error: 'claudeDir must be a folder path, or null for the default' });
+    }
+    if (body.claudeDir === null || !body.claudeDir.trim()) {
+      delete config.claudeDir;
+      folder = resolveClaudeDir({ env });
+    } else {
+      const claudeDir = expandHome(body.claudeDir);
+      if (claudeDir.length > MAX_PATH_LENGTH || !isAbsolute(claudeDir)) {
+        return send(res, 400, { error: 'Use a full path, like ~/.claude or /Users/you/.claude' });
+      }
+      const projects = await stat(join(claudeDir, 'projects')).catch(() => null);
+      if (!projects?.isDirectory()) {
+        return send(res, 400, { error: `No projects folder in ${claudeDir}. Pick the folder Claude Code keeps its data in, the one that contains "projects".` });
+      }
+      config.claudeDir = claudeDir;
+      folder = { claudeDir, source: 'settings' };
+    }
+  }
+  if ('editor' in body) {
+    if (!Object.hasOwn(EDITORS, body.editor)) {
+      return send(res, 400, { error: `Pick one of these editors: ${Object.keys(EDITORS).join(', ')}` });
+    }
+    config.editor = body.editor;
+  }
+  if ('openBrowser' in body) {
+    if (typeof body.openBrowser !== 'boolean') {
+      return send(res, 400, { error: 'openBrowser must be true or false' });
+    }
+    config.openBrowser = body.openBrowser;
+  }
+  if ('port' in body) {
+    if (body.port === null) {
+      delete config.port;
+    } else if (!isValidPort(body.port)) {
+      return send(res, 400, { error: `Use a port between ${MIN_PORT} and 65535` });
+    } else {
+      config.port = body.port;
+    }
+  }
+  await writeConfig(configFile, config);
+  if (folder) {
+    Object.assign(settings, { root: join(folder.claudeDir, 'projects'), claudeDir: folder.claudeDir, source: folder.source });
+  }
+  settings.editor = config.editor ?? settings.editor;
+
+  return send(res, 200, await describe(settings, configFile, req));
+}
+
+async function describe(settings, configFile, req) {
+  const config = configFile ? await readConfig(configFile) : {};
+
+  return {
+    claudeDir: settings.claudeDir,
+    projectsDir: settings.root,
+    source: settings.source,
+    configFile,
+    editor: settings.editor,
+    editors: Object.entries(EDITORS).map(([id, { label }]) => ({ id, label })),
+    openBrowser: config.openBrowser !== false,
+    port: isValidPort(config.port) ? config.port : null,
+    defaultPort: DEFAULT_PORT,
+    runningPort: req.socket.localPort,
+  };
 }
 
 async function readJson(req) {
