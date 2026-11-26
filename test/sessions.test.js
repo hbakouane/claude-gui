@@ -29,6 +29,8 @@ const fullSession = lines(
   { type: 'ai-title', aiTitle: 'Fix login bug' },
   { type: 'ai-title', aiTitle: 'verify-login-fix-prod' },
   { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: 'WT=../app-fix && git worktree add -b fix/login "$WT" origin/main 2>&1 | tail -2' } }] }, cwd: '/Users/me/code/app' },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'a1', name: 'Artifact', input: { file_path: '/tmp/x/report.html' } }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a1', content: 'Published /tmp/x/report.html at https://claude.ai/code/artifact/abc (Version 1, version id 1)' }] } },
 );
 
 let root;
@@ -63,6 +65,7 @@ describe('parseSession', () => {
       ],
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       mcps: ['claude_ai_Linear', 'supabase'],
+      artifacts: [{ url: 'https://claude.ai/code/artifact/abc', name: 'report', change: 'created', version: 1 }],
       lastActivity: '2026-11-20T11:31:00.000Z',
     });
   });
@@ -74,7 +77,7 @@ describe('parseSession', () => {
       { type: 'user', message: { content: longPrompt }, timestamp: '2026-11-20T10:00:01.000Z' },
     ));
 
-    const { title, worktrees, prs, mcps } = await parseSession(file);
+    const { title, worktrees, prs, mcps, artifacts } = await parseSession(file);
 
     assert.equal(title.length, 80);
     assert.ok(title.startsWith('Investigate why the nightly sync'));
@@ -82,6 +85,7 @@ describe('parseSession', () => {
     assert.deepEqual(worktrees, []);
     assert.deepEqual(prs, []);
     assert.deepEqual(mcps, []);
+    assert.deepEqual(artifacts, []);
   });
 
   it('uses the first task slug when the session only has slug titles', async () => {
@@ -125,8 +129,10 @@ describe('parseSession', () => {
   });
 });
 
-describe('worktrees', () => {
+describe('worktrees and artifacts', () => {
   const bash = (command) => ({ type: 'assistant', cwd: '/repo/app', message: { content: [{ type: 'tool_use', id: command, name: 'Bash', input: { command } }] } });
+  const artifact = (id, input) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Artifact', input }] } });
+  const result = (id, content, isError = false) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } });
 
   it('finds worktrees made with git worktree add or the EnterWorktree tool', async () => {
     const existing = await mkdtemp(join(tmpdir(), 'csd-wt-'));
@@ -155,6 +161,23 @@ describe('worktrees', () => {
     } finally {
       await rm(existing, { recursive: true, force: true });
     }
+  });
+
+  it('lists artifacts the session created, updated or opened', async () => {
+    const file = await writeSession('-art', 'art', lines(
+      artifact('p1', { file_path: '/s/plan.html' }), result('p1', 'Published /s/plan.html at https://claude.ai/code/artifact/plan (Version 1, version id x)'),
+      artifact('p2', { file_path: '/s/plan.html' }), result('p2', 'Published /s/plan.html at https://claude.ai/code/artifact/plan (Version 2, version id y)'),
+      artifact('r1', { action: 'read', url: 'https://claude.ai/artifact/shared?sk=secret' }), result('r1', '<html>'),
+      artifact('u1', { url: 'https://claude.ai/artifact/shared', file_path: '/s/shared-v2.html' }), result('u1', 'Published /s/shared-v2.html at https://claude.ai/artifact/shared (Version 4, version id z)'),
+      artifact('x1', { file_path: '/s/broken.html' }), result('x1', 'Publish refused', true),
+      artifact('l1', { action: 'list' }), result('l1', 'https://claude.ai/artifact/other'),
+      artifact('v1', { action: 'read', url: 'https://evil.example/x' }), result('v1', 'nope'),
+    ));
+
+    assert.deepEqual((await parseSession(file)).artifacts, [
+      { url: 'https://claude.ai/code/artifact/plan', name: 'plan', change: 'created', version: 2 },
+      { url: 'https://claude.ai/artifact/shared', name: 'shared-v2', change: 'updated', version: 4 },
+    ]);
   });
 });
 

@@ -1,7 +1,7 @@
 import { createReadStream, existsSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
@@ -12,6 +12,9 @@ const PARALLEL_FILES = 8;
 const WORKTREE_ADD = /(?:^|[;&|(\n]|\$\()\s*git\s+(?:-C\s+\S+\s+)?worktree\s+add\b([^;&|\n]*)/g;
 const SHELL_ASSIGNMENT = /(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_]\w*)=("[^"]*"|'[^']*'|[^\s;&|)]+)/g;
 const PLAIN_PATH = /^[\w@%+=:,./~-]+$/;
+const ARTIFACT_URL = /\bat (https:\/\/claude\.ai\/[^\s)]+)/;
+const ARTIFACT_VERSION = /\(Version (\d+)/;
+const ARTIFACT_RANK = { viewed: 0, updated: 1, created: 2 };
 
 const cache = new Map();
 
@@ -73,6 +76,8 @@ export async function parseSession(file) {
   const prs = new Map();
   const mcps = new Set();
   const worktrees = new Set();
+  const artifacts = new Map();
+  const artifactCalls = new Map();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -120,6 +125,17 @@ export async function parseSession(file) {
         if (block.name === 'EnterWorktree' && (block.input?.path || block.input?.name)) {
           worktrees.add(resolve(event.cwd ?? cwd ?? '/', block.input.path ?? join('.claude', 'worktrees', block.input.name)));
         }
+        if (block.name === 'Artifact') {
+          artifactCalls.set(block.id, block.input ?? {});
+        }
+      }
+    }
+    if (event.type === 'user' && Array.isArray(event.message?.content)) {
+      for (const block of event.message.content) {
+        const call = block?.type === 'tool_result' && !block.is_error && artifactCalls.get(block.tool_use_id);
+        if (call) {
+          recordArtifact(artifacts, call, resultText(block.content));
+        }
       }
     }
     if (firstPrompt === null && event.type === 'user' && !event.isMeta && !event.isSidechain) {
@@ -135,6 +151,7 @@ export async function parseSession(file) {
     worktrees: [...worktrees].map((path) => ({ path, exists: existsSync(path) })),
     prs: [...prs.values()],
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
+    artifacts: [...artifacts.values()],
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
   cache.set(file, { size: info.size, mtimeMs: info.mtimeMs, session });
@@ -207,6 +224,26 @@ function worktreeTargets(command, cwd) {
 
 function unquote(word) {
   return word.replace(/^(["'])(.*)\1$/, '$2');
+}
+
+function recordArtifact(artifacts, input, result) {
+  const action = input.action ?? 'publish';
+  if ((action !== 'publish' && action !== 'read') || input.asset) {
+    return;
+  }
+  const url = (action === 'publish' ? ARTIFACT_URL.exec(result)?.[1] ?? input.url : input.url)?.split('?')[0];
+  if (!url?.startsWith('https://claude.ai/')) {
+    return;
+  }
+  const version = Number(ARTIFACT_VERSION.exec(result)?.[1]) || null;
+  const change = action === 'read' ? 'viewed' : version === 1 || (!version && !input.url) ? 'created' : 'updated';
+  const previous = artifacts.get(url);
+  artifacts.set(url, {
+    url,
+    name: input.title ?? (input.file_path ? basename(input.file_path, extname(input.file_path)) : null) ?? previous?.name ?? url.split('/').pop(),
+    change: previous && ARTIFACT_RANK[previous.change] > ARTIFACT_RANK[change] ? previous.change : change,
+    version: Math.max(version ?? 0, previous?.version ?? 0) || null,
+  });
 }
 
 function promptText(content) {
