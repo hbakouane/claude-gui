@@ -130,10 +130,12 @@
   .s-main { min-width: 0; flex: 1; }
   .s-title { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .s-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-width: 0; }
-  .s-last { display: flex; gap: 14px; margin-top: 6px; font-size: 12.5px; color: var(--text-3); }
-  .s-last > span { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .s-last > span:nth-child(2) { flex-grow: 1.6; }
-  .s-last b { color: var(--text-2); font-weight: 600; }
+  .s-tip { display: none; }
+  .tip { position: fixed; z-index: 50; top: 0; left: 0; width: max-content; max-width: min(460px, calc(100vw - 24px)); padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; color: var(--text); pointer-events: none; opacity: 0; transform: translateY(-2px); transition: opacity .08s, transform .08s; }
+  .tip.show { opacity: 1; transform: none; }
+  .tip p { margin: 0; overflow-wrap: anywhere; }
+  .tip p + p { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .tip b { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
   .c-mcp { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
   .c-time { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .c-idle { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
@@ -749,7 +751,7 @@
 
   function lastLine(s) {
     const parts = [['You', s.lastPrompt], ['Claude', s.lastReply]].filter(([, text]) => text);
-    return parts.length ? `<div class="s-last">${parts.map(([who, text]) => `<span title="${esc(`${who}: ${text}`)}"><b>${who}:</b> ${esc(text)}</span>`).join('')}</div>` : '';
+    return parts.length ? `<div class="s-tip">${parts.map(([who, text]) => `<p><b>${who}</b>${esc(text)}</p>`).join('')}</div>` : '';
   }
 
   function skillsChip(s) {
@@ -846,7 +848,33 @@
     more.title = `${hidden.map((chip) => chip.textContent.trim()).join('\n')}\n\nClick to show all`;
   }
 
+  const tip = Object.assign(document.createElement('div'), { className: 'tip' });
+  tip.setAttribute('role', 'tooltip');
+  document.body.append(tip);
+  let tipRow = null;
+
+  function showTip(row) {
+    const source = row?.querySelector('.s-tip');
+    if (!source) return hideTip();
+    if (tipRow === row) return;
+    tipRow = row;
+    tip.innerHTML = source.innerHTML;
+    tip.classList.add('show');
+    const title = row.querySelector('.s-title').getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    const { width, height } = tip.getBoundingClientRect();
+    const top = box.bottom + 6 + height > innerHeight - 8 ? box.top - height - 6 : box.bottom + 6;
+    tip.style.left = `${Math.max(12, Math.min(title.left, innerWidth - width - 12))}px`;
+    tip.style.top = `${Math.max(8, top)}px`;
+  }
+
+  function hideTip() {
+    tipRow = null;
+    tip.classList.remove('show');
+  }
+
   function renderContent() {
+    hideTip();
     const focusedKey = content.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     const sessionPage = Boolean(state.sessionId && !state.sessionsError);
     content.classList.toggle('is-session', sessionPage);
@@ -1390,6 +1418,11 @@
   }
 
   content.addEventListener('click', handleClick);
+  content.addEventListener('mouseover', (event) => showTip(event.target.closest('.row')));
+  content.addEventListener('mouseleave', hideTip);
+  content.addEventListener('focusin', (event) => (event.target.matches('.row') ? showTip(event.target) : hideTip()));
+  content.addEventListener('focusout', hideTip);
+  main.addEventListener('scroll', hideTip);
   content.addEventListener('scroll', (event) => event.target.classList?.contains('chat') && updateJump(), true);
   content.addEventListener('toggle', (event) => {
     if (!event.target.open) return;
