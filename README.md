@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="site/logo.svg" width="88" height="88" alt="claude-gui logo">
+<img src=".github/assets/logo.svg" width="88" height="88" alt="claude-gui logo">
 
 # claude-gui
 
@@ -17,7 +17,7 @@ A local dashboard for your [Claude Code](https://claude.com/claude-code) history
 npx claude-gui
 ```
 
-<img src="site/screenshots/hero-dark.png" alt="claude-gui showing a session's conversation, resume command, pull request and artifact" width="900">
+<img src=".github/assets/hero-dark.png" alt="claude-gui showing a session's conversation, resume command, pull request and artifact" width="900">
 
 </div>
 
@@ -45,12 +45,12 @@ claude-gui reads the transcripts already on your disk and turns them into a dash
 
 <table>
   <tr>
-    <td width="50%"><img src="site/screenshots/hover-card.png" alt="Session list with a hover card showing the last prompt and reply"><br><sub><b>Where you stopped</b>, on every session</sub></td>
-    <td width="50%"><img src="site/screenshots/files-and-pins.png" alt="Files changed with a diff, and pinned usage and files boxes"><br><sub><b>Files changed</b> with diffs, and the estimated cost</sub></td>
+    <td width="50%"><img src=".github/assets/hover-card.png" alt="Session list with a hover card showing the last prompt and reply"><br><sub><b>Where you stopped</b>, on every session</sub></td>
+    <td width="50%"><img src=".github/assets/files-and-pins.png" alt="Files changed with a diff, and pinned usage and files boxes"><br><sub><b>Files changed</b> with diffs, and the estimated cost</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="site/screenshots/tool-calls.png" alt="Conversation with an expanded tool call and a markdown table"><br><sub><b>The full conversation</b>, tool calls included</sub></td>
-    <td width="50%"><img src="site/screenshots/search.png" alt="Search results with highlighted matches"><br><sub><b>Search</b> across every session</sub></td>
+    <td width="50%"><img src=".github/assets/tool-calls.png" alt="Conversation with an expanded tool call and a markdown table"><br><sub><b>The full conversation</b>, tool calls included</sub></td>
+    <td width="50%"><img src=".github/assets/search.png" alt="Search results with highlighted matches"><br><sub><b>Search</b> across every session</sub></td>
   </tr>
 </table>
 
