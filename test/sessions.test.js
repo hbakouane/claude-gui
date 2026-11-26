@@ -221,6 +221,15 @@ describe('server', () => {
     assert.equal((await get('/secrets')).status, 404);
   });
 
+  it('serves a session conversation and 404s unknown sessions', async () => {
+    const response = await get(`/api/projects/${encodeURIComponent(PROJECT)}/sessions/${SESSION_ID}/messages`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(JSON.parse(response.body).map((item) => [item.kind, item.text]).slice(0, 2), [['command', '/clear'], ['user', 'Fix the login bug please']]);
+
+    assert.equal((await get(`/api/projects/${encodeURIComponent(PROJECT)}/sessions/nope/messages`)).status, 404);
+    assert.equal((await get(`/api/projects/${encodeURIComponent(PROJECT)}/sessions/..%2F${SESSION_ID}/messages`)).status, 404);
+  });
+
   it('accepts localhost and rejects other Host headers', async () => {
     assert.equal((await get('/api/projects', `localhost:${port}`)).status, 200);
     assert.equal((await get('/api/projects', 'evil.example.com')).status, 403);

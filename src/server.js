@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
-import { listProjects, listSessions } from './sessions.js';
+import { listProjects, listSessions, readConversation } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const SESSIONS_ROUTE = /^\/api\/projects\/([^/]+)\/sessions$/;
+const MESSAGES_ROUTE = /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/messages$/;
 
 export function createServer({ root }) {
   return createHttpServer(async (req, res) => {
@@ -21,6 +22,11 @@ export function createServer({ root }) {
       }
       if (pathname === '/api/projects') {
         return send(res, 200, await listProjects(root));
+      }
+      const messagesMatch = MESSAGES_ROUTE.exec(pathname);
+      if (messagesMatch) {
+        const messages = await readConversation(root, safeDecode(messagesMatch[1]), safeDecode(messagesMatch[2]));
+        return messages ? send(res, 200, messages) : send(res, 404, { error: 'Not found' });
       }
       const match = SESSIONS_ROUTE.exec(pathname);
       const sessions = match && await listSessions(root, safeDecode(match[1]));
