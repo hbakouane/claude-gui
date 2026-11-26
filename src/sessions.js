@@ -327,16 +327,25 @@ const SUMMARY_LENGTH = 160;
 const conversationCache = new Map();
 
 export async function readConversation(root, projectId, sessionId) {
+  const file = await sessionPath(root, projectId, sessionId);
+
+  return file ? parseConversation(file) : null;
+}
+
+export async function findSession(root, projectId, sessionId) {
+  const file = await sessionPath(root, projectId, sessionId);
+
+  return file ? parseSession(file) : null;
+}
+
+async function sessionPath(root, projectId, sessionId) {
   if (!(await projectDirs(root)).includes(projectId)) {
     return null;
   }
   const dir = join(root, projectId);
   const names = await readdir(dir).catch(() => []);
-  if (!names.includes(`${sessionId}.jsonl`)) {
-    return null;
-  }
 
-  return parseConversation(join(dir, `${sessionId}.jsonl`));
+  return names.includes(`${sessionId}.jsonl`) ? join(dir, `${sessionId}.jsonl`) : null;
 }
 
 export async function parseConversation(file) {
