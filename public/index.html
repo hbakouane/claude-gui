@@ -4,145 +4,832 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude Sessions</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d97757'/%3E%3Cg fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' transform='translate(4 4)'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e4e3de;
-    --accent: #c15f3c; --badge: #f0efea; --ok: #2f7d4f;
+    --bg: #fafaf9; --panel: #ffffff; --sidebar: #f5f5f4; --subtle: #fafaf9;
+    --text: #1c1917; --text-2: #57534e; --text-3: #a8a29e;
+    --border: #e7e5e4; --border-strong: #d6d3d1; --hover: #f5f5f4; --active: #eeedeb;
+    --accent: #d97757; --accent-strong: #c2603f; --accent-soft: rgba(217, 119, 87, .12);
+    --green: #16a34a; --green-soft: rgba(22, 163, 74, .16); --amber: #d97706; --amber-soft: rgba(217, 119, 6, .14);
+    --idle: #a8a29e; --blue: #2563eb; --blue-soft: rgba(37, 99, 235, .08); --violet: #7c3aed; --violet-soft: rgba(124, 58, 237, .09);
+    --shadow-sm: 0 1px 2px rgba(28, 25, 23, .05);
+    --shadow: 0 1px 2px rgba(28, 25, 23, .04), 0 12px 32px -8px rgba(28, 25, 23, .12);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1a1a18; --card: #242422; --text: #ecebe6; --muted: #9a9993; --border: #37362f;
-      --accent: #e08a62; --badge: #31302b; --ok: #6cc28f;
+    :root:not([data-theme="light"]) {
+      --bg: #0f0f10; --panel: #161618; --sidebar: #121213; --subtle: #1a1a1c;
+      --text: #f4f4f5; --text-2: #a1a1aa; --text-3: #6b6b73;
+      --border: #26262a; --border-strong: #34343a; --hover: #1c1c1f; --active: #232327;
+      --accent: #e5896a; --accent-strong: #f0a184; --accent-soft: rgba(229, 137, 106, .14);
+      --green: #4ade80; --green-soft: rgba(74, 222, 128, .16); --amber: #fbbf24; --amber-soft: rgba(251, 191, 36, .14);
+      --idle: #52525b; --blue: #60a5fa; --blue-soft: rgba(96, 165, 250, .1); --violet: #a78bfa; --violet-soft: rgba(167, 139, 250, .12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px -8px rgba(0, 0, 0, .5);
+      color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #0f0f10; --panel: #161618; --sidebar: #121213; --subtle: #1a1a1c;
+    --text: #f4f4f5; --text-2: #a1a1aa; --text-3: #6b6b73;
+    --border: #26262a; --border-strong: #34343a; --hover: #1c1c1f; --active: #232327;
+    --accent: #e5896a; --accent-strong: #f0a184; --accent-soft: rgba(229, 137, 106, .14);
+    --green: #4ade80; --green-soft: rgba(74, 222, 128, .16); --amber: #fbbf24; --amber-soft: rgba(251, 191, 36, .14);
+    --idle: #52525b; --blue: #60a5fa; --blue-soft: rgba(96, 165, 250, .1); --violet: #a78bfa; --violet-soft: rgba(167, 139, 250, .12);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px -8px rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
-  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 24px; word-break: break-all; }
-  a { color: var(--accent); }
-  .back { display: inline-block; margin-bottom: 16px; text-decoration: none; }
-  .list { display: grid; gap: 12px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-  a.card { display: block; color: inherit; text-decoration: none; }
-  a.card:hover, a.card:focus-visible { border-color: var(--accent); outline: none; }
-  .card h2 { font-size: 16px; margin: 0 0 10px; overflow-wrap: anywhere; }
-  .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; overflow-wrap: anywhere; }
-  .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
-  dt { color: var(--muted); }
-  dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-  .badge { display: inline-block; background: var(--badge); border-radius: 6px; padding: 1px 8px; margin: 0 6px 4px 0; font-size: 13px; }
-  .idle-recent { color: var(--ok); font-weight: 600; }
-  .copy { font: inherit; font-size: 13px; margin-left: 8px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--badge); color: var(--text); cursor: pointer; }
-  .copy:hover, .copy:focus-visible { border-color: var(--accent); }
-  .empty, .error { color: var(--muted); padding: 24px 0; }
-  .error { color: var(--accent); }
-  @media (max-width: 560px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; }
+  code, .mono { font-family: var(--mono); font-size: 12.5px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; text-decoration: none; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #e8957a, #c8643f); color: #fff; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), var(--shadow-sm); flex: none; }
+  .brand-name { font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
+  .brand-sub { font-size: 12px; color: var(--text-3); }
+  .side-label { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .nav { flex: 1; overflow-y: auto; padding: 0 10px 10px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: var(--text-2); transition: background .12s, color .12s; }
+  .nav-item:hover { background: var(--hover); color: var(--text); }
+  .nav-item.is-active { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--border), var(--shadow-sm); }
+  .nav-text { min-width: 0; flex: 1; }
+  .nav-name { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-path { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .count { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .avatar { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; font-weight: 650; color: #fff; flex: none; text-transform: uppercase; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); }
+  .avatar.lg { width: 36px; height: 36px; border-radius: 9px; font-size: 15px; }
+  .side-foot { border-top: 1px solid var(--border); padding: 12px 18px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12px; color: var(--text-3); }
+  .side-foot span { display: flex; align-items: center; gap: 6px; }
+  kbd { font: 500 11px/1 var(--mono); min-width: 18px; padding: 3px 5px; text-align: center; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--panel); color: var(--text-2); }
+
+  /* Main */
+  .main { min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  .topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 24px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); }
+  .crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 550; }
+  .crumbs a { color: var(--text-2); text-decoration: none; }
+  .crumbs a:hover { color: var(--text); }
+  .crumbs .sep { color: var(--text-3); display: flex; }
+  .crumbs .current { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spacer { flex: 1; }
+  .search { position: relative; width: min(380px, 40vw); }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+  .search input { width: 100%; height: 36px; padding: 0 52px 0 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); font: inherit; box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s; }
+  .search input::placeholder { color: var(--text-3); }
+  .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .updated { font-size: 12px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--text-2); transition: background .12s, color .12s; flex: none; }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+  .icon-btn.sm { width: 26px; height: 26px; border-radius: 6px; }
+  .icon-btn.bordered { border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow-sm); }
+  .is-refreshing .refresh svg { animation: spin .8s linear infinite; }
+  .menu-btn { display: none; }
+
+  .content { width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 24px 64px; }
+  .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .page-head h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; }
+  .page-head p { margin: 3px 0 0; color: var(--text-2); font-size: 13px; }
+  .page-head .mono { color: var(--text-2); }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { text-align: left; padding: 14px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s; }
+  .stat:hover { border-color: var(--border-strong); }
+  .stat.is-selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .stat-label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); font-weight: 500; }
+  .stat-value { margin-top: 6px; font-size: 26px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+
+  /* Table */
+  .table { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); overflow: hidden; }
+  .thead, .row { display: grid; grid-template-columns: minmax(0, 1fr) 190px 150px 96px 140px; column-gap: 20px; align-items: center; padding: 0 18px; }
+  .thead { height: 38px; font-size: 12px; font-weight: 550; color: var(--text-3); background: var(--subtle); border-bottom: 1px solid var(--border); }
+  .group { display: flex; align-items: center; gap: 8px; padding: 9px 18px; font-size: 12px; font-weight: 600; color: var(--text-2); background: var(--subtle); border-bottom: 1px solid var(--border); }
+  .group .count { font-weight: 500; }
+  .row { min-height: 64px; padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; position: relative; }
+  .row:last-child { border-bottom: 0; }
+  .row:hover { background: var(--hover); }
+  .row:focus-visible { outline: none; background: var(--hover); box-shadow: inset 3px 0 0 var(--accent); }
+  .row.is-open { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  .c-session { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+  .c-session .dot { margin-top: 6px; }
+  .s-main { min-width: 0; flex: 1; }
+  .s-title { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-width: 0; }
+  .c-mcp { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+  .c-time { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .c-idle { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
+  .c-idle .active { color: var(--green); font-weight: 600; }
+  .c-id { display: flex; align-items: center; gap: 4px; color: var(--text-2); }
+  .muted { color: var(--text-3); font-size: 13px; }
+
+  /* Chips, dots, pills */
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--subtle); color: var(--text-2); font-size: 12px; white-space: nowrap; text-decoration: none; min-width: 0; }
+  .chip > span { overflow: hidden; text-overflow: ellipsis; }
+  .chip svg { flex: none; }
+  .chip-branch { font-family: var(--mono); font-size: 11.5px; max-width: 320px; }
+  .chip-pr { color: var(--violet); background: var(--violet-soft); border-color: transparent; font-weight: 500; }
+  a.chip-pr:hover { text-decoration: underline; }
+  .chip-worktree { color: var(--blue); background: var(--blue-soft); border-color: transparent; font-weight: 500; }
+  .chip-mcp { background: var(--panel); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); flex: none; }
+  .dot.active { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); animation: pulse 2s ease-in-out infinite; }
+  .dot.recent { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+  .pill { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 550; background: var(--hover); color: var(--text-2); }
+  .pill.active { background: var(--green-soft); color: var(--green); }
+  .pill.recent { background: var(--amber-soft); color: var(--amber); }
+
+  /* Project cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .pcard { display: flex; flex-direction: column; gap: 16px; padding: 18px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); text-decoration: none; transition: border-color .15s, box-shadow .2s, transform .2s; }
+  .pcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-2px); }
+  .pcard-head { display: flex; gap: 12px; align-items: center; min-width: 0; }
+  .pcard-name { font-weight: 650; font-size: 15px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pcard-path { font-family: var(--mono); font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-2); }
+  .pcard-foot span { display: inline-flex; align-items: center; gap: 7px; }
+  .pcard .arrow { color: var(--text-3); transition: transform .2s, color .2s; }
+  .pcard:hover .arrow { color: var(--accent); transform: translateX(2px); }
+
+  /* Drawer */
+  .backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(12, 10, 9, .32); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 31; width: min(540px, 100vw); display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); box-shadow: -24px 0 60px -12px rgba(0, 0, 0, .25); transform: translateX(104%); transition: transform .26s cubic-bezier(.2, .8, .2, 1); visibility: hidden; }
+  .is-drawer-open .backdrop { opacity: 1; pointer-events: auto; }
+  .is-drawer-open .drawer { transform: none; visibility: visible; }
+  .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 22px 24px 32px; }
+  .drawer h2 { margin: 0 0 20px; font-size: 19px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; overflow-wrap: anywhere; }
+  .section { margin-top: 26px; }
+  .section:first-of-type { margin-top: 0; }
+  .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .cmd { position: relative; padding: 14px 48px 14px 16px; border-radius: 10px; background: #1c1917; color: #f5f5f4; font: 12.5px/1.65 var(--mono); overflow-wrap: anywhere; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+  .cmd .prompt { color: #e8957a; user-select: none; }
+  .cmd .icon-btn { position: absolute; top: 8px; right: 8px; color: #a8a29e; }
+  .cmd .icon-btn:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+  .hint { margin-top: 8px; font-size: 12px; color: var(--text-3); }
+  dl.props { display: grid; grid-template-columns: 120px minmax(0, 1fr); margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  dl.props dt, dl.props dd { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--border); min-height: 42px; display: flex; align-items: center; }
+  dl.props dt { color: var(--text-2); font-size: 13px; background: var(--subtle); }
+  dl.props dd { gap: 8px; min-width: 0; justify-content: space-between; }
+  dl.props dd > .val { min-width: 0; overflow-wrap: anywhere; }
+  dl.props dt:nth-last-of-type(1), dl.props dd:last-of-type { border-bottom: 0; }
+  .list { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .list-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); text-decoration: none; transition: background .1s; }
+  .list-item:last-child { border-bottom: 0; }
+  a.list-item:hover { background: var(--hover); }
+  .list-item .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .list-item .pr-icon { color: var(--violet); display: flex; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .none { padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: 10px; color: var(--text-3); font-size: 13px; }
+
+  /* States */
+  .empty { display: grid; place-items: center; text-align: center; gap: 6px; padding: 56px 24px; color: var(--text-2); }
+  .empty .empty-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--hover); color: var(--text-3); margin-bottom: 6px; }
+  .empty h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+  .empty p { margin: 0; font-size: 13px; max-width: 360px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); font-weight: 550; font-size: 13px; box-shadow: var(--shadow-sm); }
+  .btn:hover { border-color: var(--border-strong); background: var(--hover); }
+  .sk { border-radius: 6px; background: linear-gradient(90deg, var(--hover) 25%, var(--active) 37%, var(--hover) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+
+  .toast { position: fixed; left: 50%; bottom: 28px; z-index: 40; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 10px); transition: opacity .18s, transform .18s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast svg { color: var(--green); }
+
+  @keyframes pulse { 50% { box-shadow: 0 0 0 5px transparent; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+  @media (max-width: 1180px) {
+    .thead, .row { grid-template-columns: minmax(0, 1fr) 140px 90px 130px; }
+    .c-mcp { display: none; }
+  }
+  @media (max-width: 920px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 35; width: 290px; transform: translateX(-100%); transition: transform .22s ease; box-shadow: var(--shadow); }
+    .nav-open .sidebar { transform: none; }
+    .nav-open .backdrop { opacity: 1; pointer-events: auto; }
+    .menu-btn { display: inline-grid; }
+    .updated { display: none; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 680px) {
+    .topbar { padding: 0 12px; gap: 8px; }
+    .crumbs { display: none; }
+    .search { width: auto; flex: 1; }
+    .content { padding: 20px 16px 48px; }
+    .thead { display: none; }
+    .row { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 16px; }
+    .c-time, .c-id { display: none; }
+    .search kbd { display: none; }
+    .search input { padding-right: 12px; }
+    dl.props { grid-template-columns: 1fr; }
+    dl.props dt { border-bottom: 0; padding-bottom: 2px; min-height: 0; background: none; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
-<main id="app"><p class="empty">Loading…</p></main>
+<div class="shell" id="shell">
+  <aside class="sidebar" aria-label="Projects">
+    <a class="brand" href="#/">
+      <span class="logo" data-icon="history" data-size="17"></span>
+      <span><div class="brand-name">Claude Sessions</div><div class="brand-sub">Local session browser</div></span>
+    </a>
+    <div class="side-label"><span>Projects</span><span class="count" id="project-count"></span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot" aria-label="Keyboard shortcuts">
+      <span><kbd>⌘K</kbd> Search</span>
+      <span><kbd>J</kbd><kbd>K</kbd> Move</span>
+      <span><kbd>↵</kbd> Open</span>
+      <span><kbd>C</kbd> Copy ID</span>
+    </div>
+  </aside>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Show projects" data-icon="menu"></button>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="spacer"></div>
+      <span class="updated" id="updated" aria-live="polite"></span>
+      <label class="search">
+        <span class="sr-only">Search</span>
+        <span data-icon="search" data-size="15"></span>
+        <input id="search" type="search" autocomplete="off" spellcheck="false">
+        <kbd>⌘K</kbd>
+      </label>
+      <button class="icon-btn bordered refresh" id="refresh-btn" type="button" aria-label="Refresh" title="Refresh" data-icon="refresh"></button>
+      <button class="icon-btn bordered" id="theme-btn" type="button"></button>
+    </header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Session details"></aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
+
 <script>
-  const app = document.getElementById('app');
-  const RECENT_MS = 10 * 60 * 1000;
+  const ICONS = {
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    branch: '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+    pr: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+    terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+    layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+    menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+    history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+    chevron: '<path d="m9 18 6-6-6-6"/>',
+    arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  };
+  const icon = (name, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = icon(el.dataset.icon, Number(el.dataset.size) || 16);
+
+  const ACTIVE_MS = 10 * 60 * 1000;
+  const RECENT_MS = 2 * 60 * 60 * 1000;
+  const POLL_MS = 30 * 1000;
+  const STATUS_LABEL = { active: 'Active', recent: 'Recently active', idle: 'Idle' };
+  const FILTERS = {
+    all: () => true,
+    active: (s) => status(s.lastActivity) === 'active',
+    prs: (s) => s.prs.length > 0,
+    worktree: (s) => s.isWorktree,
+  };
+  const GROUP_ORDER = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Older'];
+
+  const $ = (id) => document.getElementById(id);
+  const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), drawer = $('drawer'), search = $('search'), toast = $('toast');
+  const state = { projects: null, projectsError: null, sessions: null, sessionsError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0 };
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const tilde = (path) => String(path ?? '').replace(/^\/(Users|home)\/[^/]+/, '~');
+  const baseName = (path) => String(path ?? '').split('/').filter(Boolean).pop() || path;
+  const parentPath = (path) => tilde(String(path ?? '').split('/').slice(0, -1).join('/')) || '/';
+  const mcpName = (server) => server.replace(/^claude_ai_/, '').replace(/_/g, ' ');
+  const repoName = (repository) => String(repository ?? '').split('/').pop();
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  function hue(text) {
+    let h = 0;
+    for (const c of String(text)) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return h;
+  }
+  const avatar = (name, cls = '') => `<span class="avatar ${cls}" style="background:linear-gradient(135deg,hsl(${hue(name)} 62% 58%),hsl(${(hue(name) + 28) % 360} 58% 46%))">${esc(String(name).replace(/^[^a-z0-9]+/i, '').charAt(0) || '?')}</span>`;
+
+  function status(iso) {
+    const ms = Date.now() - Date.parse(iso);
+    return ms < ACTIVE_MS ? 'active' : ms < RECENT_MS ? 'recent' : 'idle';
+  }
 
   function since(iso) {
     const minutes = Math.floor((Date.now() - Date.parse(iso)) / 60000);
-    if (minutes < 1) return 'just now';
+    if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes}m`;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ${minutes % 60}m`;
+    if (hours < 24) return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
     const days = Math.floor(hours / 24);
-    return `${days}d ${hours % 24}h`;
+    return hours % 24 ? `${days}d ${hours % 24}h` : `${days}d`;
+  }
+  const ago = (iso) => (since(iso) === 'Just now' ? 'just now' : `${since(iso)} ago`);
+
+  function dayDiff(iso) {
+    const date = new Date(iso);
+    const today = new Date();
+    return Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(date.getFullYear(), date.getMonth(), date.getDate())) / 86400000);
   }
 
-  const when = (iso) => new Date(iso).toLocaleString();
+  function shortDate(iso) {
+    const date = new Date(iso);
+    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const diff = dayDiff(iso);
+    if (diff <= 0) return `Today, ${time}`;
+    if (diff === 1) return `Yesterday, ${time}`;
+    if (date.getFullYear() === new Date().getFullYear()) return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+    return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  const fullDate = (iso) => new Date(iso).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' });
 
-  function prLink(pr) {
-    const label = esc(pr.repository ? `${pr.repository}#${pr.number}` : pr.url);
-    return /^https:\/\//.test(pr.url) ? `<a href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
+  function dayGroup(iso) {
+    const diff = dayDiff(iso);
+    return diff <= 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff < 7 ? 'Previous 7 days' : diff < 30 ? 'Previous 30 days' : 'Older';
   }
 
-  async function load(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || response.statusText);
+  function shellQuote(value) {
+    return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+  }
+  const resumeCommand = (s) => (s.cwd ? `cd ${shellQuote(s.cwd)} && claude --resume ${s.id}` : `claude --resume ${s.id}`);
+
+  function matchesQuery(text, query) {
+    const haystack = text.toLowerCase();
+    return query.toLowerCase().split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
+  }
+  const sessionText = (s) => [s.title, s.gitBranch, s.id, s.cwd, ...s.prs.map((pr) => `${pr.repository} #${pr.number} ${pr.url}`), ...s.mcps.map(mcpName)].join(' ');
+  const projectText = (p) => `${p.path} ${baseName(p.path)}`;
+
+  const currentProject = () => state.projects?.find((p) => p.id === state.projectId);
+  const currentSession = () => state.sessionId && state.sessions?.find((s) => s.id === state.sessionId);
+  const sessionHref = (id) => `#/p/${encodeURIComponent(state.projectId)}/s/${encodeURIComponent(id)}`;
+
+  async function getJSON(url) {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      const error = new Error((await response.json().catch(() => ({}))).error || response.statusText);
+      error.status = response.status;
+      throw error;
+    }
     return response.json();
   }
 
-  async function showProjects() {
-    document.title = 'Claude Sessions';
-    const projects = await load('/api/projects');
-    app.innerHTML = `
-      <h1>Projects</h1>
-      <p class="sub">Folders where Claude Code has been run</p>
-      ${projects.length ? `<div class="list">${projects.map((p) => `
-        <a class="card" href="#/p/${encodeURIComponent(p.id)}">
-          <div class="path">${esc(p.path)}</div>
-          <div class="meta">${p.sessionCount} session${p.sessionCount === 1 ? '' : 's'} · last active ${esc(since(p.lastActivity))} ago</div>
-        </a>`).join('')}</div>` : '<p class="empty">No Claude Code sessions found.</p>'}`;
+  /* ---------- Rendering ---------- */
+
+  function renderNav() {
+    $('project-count').textContent = state.projects ? state.projects.length : '';
+    if (!state.projects) {
+      nav.innerHTML = Array.from({ length: 6 }, () => `<div class="nav-item"><span class="sk" style="width:26px;height:26px;border-radius:7px"></span><span class="nav-text"><div class="sk" style="height:11px;width:70%"></div><div class="sk" style="height:9px;width:45%;margin-top:6px"></div></span></div>`).join('');
+      return;
+    }
+    nav.innerHTML = state.projects.map((p) => `
+      <a class="nav-item${p.id === state.projectId ? ' is-active' : ''}" href="#/p/${encodeURIComponent(p.id)}" ${p.id === state.projectId ? 'aria-current="page"' : ''} title="${esc(p.path)}">
+        ${avatar(baseName(p.path))}
+        <span class="nav-text"><div class="nav-name">${esc(baseName(p.path))}</div><div class="nav-path">${esc(parentPath(p.path))}</div></span>
+        <span class="count">${p.sessionCount}</span>
+      </a>`).join('');
   }
 
-  async function showSessions(id) {
-    app.innerHTML = '<p class="empty">Reading sessions…</p>';
-    const [projects, sessions] = await Promise.all([load('/api/projects'), load(`/api/projects/${encodeURIComponent(id)}/sessions`)]);
-    const path = projects.find((p) => p.id === id)?.path ?? id;
-    document.title = `${path.split('/').pop()} · Claude Sessions`;
-    app.innerHTML = `
-      <a class="back" href="#/">← All projects</a>
-      <h1>Sessions</h1>
-      <p class="sub path">${esc(path)}</p>
-      ${sessions.length ? `<div class="list">${sessions.map((s) => `
-        <article class="card">
-          <h2>${esc(s.title)}</h2>
-          <dl>
-            <dt>Folder</dt><dd class="path">${esc(s.cwd ?? '—')}</dd>
-            <dt>Git branch</dt><dd><code>${esc(s.gitBranch ?? '—')}</code></dd>
-            <dt>PR</dt><dd>${s.prs.length ? s.prs.map(prLink).join('<br>') : '—'}</dd>
-            <dt>Git worktree</dt><dd>${s.isWorktree ? '<span class="badge">Worktree</span>' : 'No'}</dd>
-            <dt>Last activity</dt><dd>${esc(when(s.lastActivity))}</dd>
-            <dt>Idle for</dt><dd><span class="idle" data-at="${esc(s.lastActivity)}"></span></dd>
-            <dt>Session ID</dt><dd><code>${esc(s.id)}</code><button class="copy" type="button" data-id="${esc(s.id)}">Copy</button></dd>
-            <dt>MCPs used</dt><dd>${s.mcps.length ? s.mcps.map((m) => `<span class="badge">${esc(m)}</span>`).join('') : '—'}</dd>
+  function renderTopbar() {
+    const project = currentProject();
+    $('crumbs').innerHTML = state.projectId
+      ? `<a href="#/">Projects</a><span class="sep">${icon('chevron', 14)}</span><span class="current">${esc(project ? baseName(project.path) : state.projectId)}</span>`
+      : '<span class="current">Projects</span>';
+    search.placeholder = state.projectId ? 'Search title, branch, PR, ID, MCP…' : 'Search projects…';
+    document.title = project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
+    tickUpdated();
+  }
+
+  function emptyState(iconName, title, text, action = '') {
+    return `<div class="empty"><div class="empty-icon">${icon(iconName, 20)}</div><h3>${esc(title)}</h3><p>${text}</p>${action}</div>`;
+  }
+
+  function renderOverview() {
+    if (state.projectsError && !state.projects) {
+      return emptyState('alert', 'Could not load projects', esc(state.projectsError.message), `<button class="btn" data-action="retry">${icon('refresh', 14)} Try again</button>`);
+    }
+    if (!state.projects) {
+      return `<div class="page-head"><div><div class="sk" style="height:22px;width:140px"></div><div class="sk" style="height:12px;width:240px;margin-top:8px"></div></div></div>
+        <div class="grid">${Array.from({ length: 6 }, () => `<div class="pcard"><div class="pcard-head"><span class="sk" style="width:36px;height:36px;border-radius:9px"></span><div style="flex:1"><div class="sk" style="height:13px;width:55%"></div><div class="sk" style="height:10px;width:80%;margin-top:7px"></div></div></div><div class="pcard-foot"><span class="sk" style="height:10px;width:90px"></span><span class="sk" style="height:10px;width:70px"></span></div></div>`).join('')}</div>`;
+    }
+    const projects = state.projects.filter((p) => matchesQuery(projectText(p), search.value));
+    const sessions = state.projects.reduce((sum, p) => sum + p.sessionCount, 0);
+    return `
+      <div class="page-head"><div><h1>Projects</h1><p>${plural(state.projects.length, 'folder')} where Claude Code has run · ${plural(sessions, 'session')}</p></div></div>
+      ${projects.length ? `<div class="grid">${projects.map((p) => `
+        <a class="pcard" href="#/p/${encodeURIComponent(p.id)}" data-nav data-key="${esc(p.id)}">
+          <div class="pcard-head">${avatar(baseName(p.path), 'lg')}<div style="min-width:0;flex:1"><div class="pcard-name">${esc(baseName(p.path))}</div><div class="pcard-path" title="${esc(p.path)}">${esc(tilde(p.path))}</div></div><span class="arrow">${icon('arrow', 16)}</span></div>
+          <div class="pcard-foot"><span>${icon('list', 14)} ${plural(p.sessionCount, 'session')}</span><span title="${esc(fullDate(p.lastActivity))}"><span class="dot ${status(p.lastActivity)}"></span><span data-ago="${esc(p.lastActivity)}">${esc(ago(p.lastActivity))}</span></span></div>
+        </a>`).join('')}</div>`
+        : `<div class="table">${emptyState('search', 'No matching projects', `Nothing matches “${esc(search.value)}”.`, '<button class="btn" data-action="clear">Clear search</button>')}</div>`}`;
+  }
+
+  function stat(key, label, iconName, value) {
+    return `<button class="stat${state.filter === key ? ' is-selected' : ''}" type="button" data-filter="${key}" aria-pressed="${state.filter === key}">
+      <div class="stat-label">${icon(iconName, 14)} ${label}</div><div class="stat-value">${value}</div></button>`;
+  }
+
+  function branchChip(s) {
+    return s.gitBranch ? `<span class="chip chip-branch" title="${esc(s.gitBranch)}">${icon('branch', 12)}<span>${esc(s.gitBranch)}</span></span>` : '';
+  }
+
+  function prChip(pr) {
+    const label = `${icon('pr', 12)}<span>${esc(pr.repository ? `${repoName(pr.repository)} #${pr.number}` : pr.url)}</span>`;
+    return /^https:\/\//.test(pr.url)
+      ? `<a class="chip chip-pr" href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer" title="${esc(pr.url)}">${label}</a>`
+      : `<span class="chip chip-pr">${label}</span>`;
+  }
+
+  function mcpChips(mcps, max) {
+    if (!mcps.length) return '<span class="muted">—</span>';
+    const shown = mcps.slice(0, max).map((m) => `<span class="chip chip-mcp" title="${esc(m)}"><span>${esc(mcpName(m))}</span></span>`).join('');
+    const rest = mcps.slice(max);
+    return shown + (rest.length ? `<span class="chip chip-mcp" title="${esc(rest.map(mcpName).join(', '))}">+${rest.length}</span>` : '');
+  }
+
+  function sessionRow(s, project) {
+    const st = status(s.lastActivity);
+    const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
+    const meta = branchChip(s) + (s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : '') + s.prs.map(prChip).join('') + folder;
+    return `
+      <div class="row${s.id === state.sessionId ? ' is-open' : ''}" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
+        <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div></div></div>
+        <div class="c-mcp">${mcpChips(s.mcps, 2)}</div>
+        <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
+        <div class="c-idle"><span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></div>
+        <div class="c-id"><code title="${esc(s.id)}">${esc(s.id.slice(0, 8))}</code><button class="icon-btn sm" type="button" data-copy="${esc(s.id)}" data-label="Session ID" title="Copy session ID" aria-label="Copy session ID">${icon('copy', 14)}</button></div>
+      </div>`;
+  }
+
+  function renderProject() {
+    const project = currentProject();
+    const head = `<div class="page-head">${avatar(baseName(project?.path ?? state.projectId), 'lg')}<div style="min-width:0"><h1>${esc(project ? baseName(project.path) : 'Project')}</h1><p class="mono" title="${esc(project?.path)}">${esc(tilde(project?.path ?? ''))}</p></div></div>`;
+
+    if (state.sessionsError) {
+      return state.sessionsError.status === 404
+        ? emptyState('folder', 'Project not found', 'This project no longer has any Claude Code sessions.', '<a class="btn" href="#/">Back to projects</a>')
+        : emptyState('alert', 'Could not load sessions', esc(state.sessionsError.message), `<button class="btn" data-action="retry">${icon('refresh', 14)} Try again</button>`);
+    }
+    if (!state.sessions) {
+      return `${head}<div class="stats">${Array.from({ length: 4 }, () => '<div class="stat"><div class="sk" style="height:11px;width:60%"></div><div class="sk" style="height:22px;width:40px;margin-top:10px"></div></div>').join('')}</div>
+        <div class="table"><div class="thead"><span>Session</span></div>${Array.from({ length: 7 }, () => '<div class="row" style="cursor:default"><div class="c-session"><span class="sk" style="width:8px;height:8px;border-radius:50%;margin-top:6px"></span><div class="s-main"><div class="sk" style="height:13px;width:58%"></div><div class="sk" style="height:18px;width:38%;margin-top:8px"></div></div></div><div class="c-mcp"><span class="sk" style="height:18px;width:70%"></span></div><div class="c-time"><span class="sk" style="display:block;height:11px;width:80%"></span></div><div class="c-idle"><span class="sk" style="display:block;height:11px;width:50%"></span></div><div class="c-id"><span class="sk" style="display:block;height:11px;width:70%"></span></div></div>').join('')}</div>`;
+    }
+
+    const all = state.sessions;
+    const counts = Object.fromEntries(Object.entries(FILTERS).map(([key, test]) => [key, all.filter(test).length]));
+    const visible = all.filter(FILTERS[state.filter]).filter((s) => matchesQuery(sessionText(s), search.value));
+    const groups = new Map();
+    for (const s of visible) {
+      const label = dayGroup(s.lastActivity);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(s);
+    }
+    const filtered = state.filter !== 'all' || search.value.trim();
+    const body = visible.length
+      ? GROUP_ORDER.filter((label) => groups.has(label)).map((label) => `
+          <div class="group">${esc(label)} <span class="count">${groups.get(label).length}</span></div>
+          ${groups.get(label).map((s) => sessionRow(s, project)).join('')}`).join('')
+      : filtered
+        ? emptyState('search', 'No matching sessions', search.value.trim() ? `Nothing matches “${esc(search.value.trim())}” with this filter.` : 'No sessions match this filter.', '<button class="btn" data-action="clear">Clear filters</button>')
+        : emptyState('history', 'No sessions yet', 'Sessions appear here once Claude Code has run in this folder.');
+
+    return `${head}
+      <div class="stats">
+        ${stat('all', 'All sessions', 'list', counts.all)}
+        ${stat('active', 'Active now', 'activity', counts.active)}
+        ${stat('prs', 'With pull requests', 'pr', counts.prs)}
+        ${stat('worktree', 'In worktrees', 'layers', counts.worktree)}
+      </div>
+      <div class="table" role="list">
+        <div class="thead"><span>Session</span><span class="c-mcp">MCP servers</span><span class="c-time">Last activity</span><span class="c-idle">Idle for</span><span class="c-id">Session ID</span></div>
+        ${body}
+      </div>`;
+  }
+
+  function renderContent() {
+    const focusedKey = content.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+    content.innerHTML = state.projectId ? renderProject() : renderOverview();
+    if (focusedKey) {
+      [...content.querySelectorAll('[data-nav]')].find((el) => el.dataset.key === focusedKey)?.focus({ preventScroll: true });
+    }
+  }
+
+  function renderDrawer() {
+    const s = currentSession();
+    shell.classList.toggle('is-drawer-open', Boolean(s));
+    document.body.classList.toggle('is-drawer-open', Boolean(s));
+    if (!s) return;
+    const st = status(s.lastActivity);
+    const copyBtn = (value, label) => `<button class="icon-btn sm" type="button" data-copy="${esc(value)}" data-label="${esc(label)}" title="Copy ${esc(label.toLowerCase())}" aria-label="Copy ${esc(label.toLowerCase())}">${icon('copy', 14)}</button>`;
+    drawer.innerHTML = `
+      <div class="drawer-head">
+        <span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle <span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>
+        <div class="spacer"></div>
+        <button class="icon-btn" type="button" data-action="close" aria-label="Close details" title="Close (Esc)">${icon('x', 18)}</button>
+      </div>
+      <div class="drawer-body">
+        <h2>${esc(s.title)}</h2>
+        <div class="section">
+          <div class="section-title"><span>Resume</span></div>
+          <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
+          <div class="hint">Paste in a terminal to pick up exactly where this session stopped.</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Details</span></div>
+          <dl class="props">
+            <dt>Session ID</dt><dd><span class="val mono">${esc(s.id)}</span>${copyBtn(s.id, 'Session ID')}</dd>
+            <dt>Folder</dt><dd><span class="val mono" title="${esc(s.cwd)}">${esc(tilde(s.cwd) || '—')}</span>${s.cwd ? copyBtn(s.cwd, 'Folder') : ''}</dd>
+            <dt>Git branch</dt><dd><span class="val mono">${esc(s.gitBranch || '—')}</span>${s.gitBranch ? copyBtn(s.gitBranch, 'Branch') : ''}</dd>
+            <dt>Git worktree</dt><dd><span class="val">${s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : 'No'}</span></dd>
+            <dt>Last activity</dt><dd><span class="val">${esc(fullDate(s.lastActivity))}</span></dd>
+            <dt>Idle for</dt><dd><span class="val" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></dd>
           </dl>
-        </article>`).join('')}</div>` : '<p class="empty">No sessions in this project.</p>'}`;
-    tickIdle();
+        </div>
+        <div class="section">
+          <div class="section-title"><span>Pull requests</span><span>${s.prs.length}</span></div>
+          ${s.prs.length ? `<div class="list">${s.prs.map((pr) => /^https:\/\//.test(pr.url)
+            ? `<a class="list-item" href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow"><strong>${esc(repoName(pr.repository) || pr.url)}</strong> <span class="muted">#${esc(pr.number)}</span><div class="muted" style="font-size:12px">${esc(pr.repository)}</div></span>${icon('external', 14)}</a>`
+            : `<div class="list-item"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow">${esc(pr.url)}</span></div>`).join('')}</div>` : '<div class="none">No pull requests were opened in this session.</div>'}
+        </div>
+        <div class="section">
+          <div class="section-title"><span>MCP servers used</span><span>${s.mcps.length}</span></div>
+          ${s.mcps.length ? `<div class="chips">${s.mcps.map((m) => `<span class="chip chip-mcp" title="${esc(m)}">${icon('plug', 12)}<span>${esc(mcpName(m))}</span></span>`).join('')}</div>` : '<div class="none">This session did not call any MCP server.</div>'}
+        </div>
+      </div>`;
   }
 
-  function tickIdle() {
-    for (const el of document.querySelectorAll('.idle')) {
-      el.textContent = since(el.dataset.at);
-      el.classList.toggle('idle-recent', Date.now() - Date.parse(el.dataset.at) < RECENT_MS);
-    }
+  function render() {
+    renderNav();
+    renderTopbar();
+    renderContent();
+    renderDrawer();
   }
 
-  app.addEventListener('click', async (event) => {
-    const button = event.target.closest('.copy');
-    if (!button) return;
+  function tickUpdated() {
+    $('updated').textContent = state.updatedAt ? `Updated ${ago(new Date(state.updatedAt).toISOString())}` : '';
+  }
+
+  function tick() {
+    for (const el of document.querySelectorAll('[data-since]')) el.textContent = since(el.dataset.since);
+    for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);
+    tickUpdated();
+  }
+
+  /* ---------- Data ---------- */
+
+  async function loadProjects() {
     try {
-      await navigator.clipboard.writeText(button.dataset.id);
-      button.textContent = 'Copied';
-    } catch {
-      button.textContent = 'Copy failed';
+      state.projects = await getJSON('/api/projects');
+      state.projectsError = null;
+    } catch (error) {
+      state.projectsError = error;
     }
-    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  }
+
+  async function loadSessions() {
+    const id = state.projectId;
+    try {
+      const sessions = await getJSON(`/api/projects/${encodeURIComponent(id)}/sessions`);
+      if (state.projectId !== id) return;
+      state.sessions = sessions;
+      state.sessionsError = null;
+    } catch (error) {
+      if (state.projectId !== id) return;
+      state.sessionsError = error;
+    }
+  }
+
+  let refreshing = false;
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true;
+    shell.classList.add('is-refreshing');
+    await Promise.all([loadProjects(), state.projectId ? loadSessions() : null]);
+    state.updatedAt = Date.now();
+    refreshing = false;
+    shell.classList.remove('is-refreshing');
+    render();
+  }
+
+  /* ---------- Routing ---------- */
+
+  function parseRoute() {
+    const match = location.hash.match(/^#\/p\/([^/]+)(?:\/s\/([^/]+))?/);
+    return { projectId: match ? decodeURIComponent(match[1]) : null, sessionId: match?.[2] ? decodeURIComponent(match[2]) : null };
+  }
+
+  async function applyRoute() {
+    const { projectId, sessionId } = parseRoute();
+    const projectChanged = projectId !== state.projectId;
+    const wasOpen = Boolean(state.sessionId);
+    state.projectId = projectId;
+    state.sessionId = sessionId;
+    shell.classList.remove('nav-open');
+    if (projectChanged) {
+      state.sessions = null;
+      state.sessionsError = null;
+      state.filter = 'all';
+      search.value = '';
+      main.scrollTop = 0;
+    }
+    render();
+    if (projectChanged && projectId) {
+      await loadSessions();
+      state.updatedAt = Date.now();
+      render();
+    }
+    if (sessionId && currentSession()) {
+      drawer.querySelector('[data-action="close"]')?.focus({ preventScroll: true });
+      content.querySelector(`[data-session="${CSS.escape(sessionId)}"]`)?.scrollIntoView({ block: 'nearest' });
+    } else if (wasOpen && !sessionId) {
+      content.querySelector('.row.is-open, [data-session]')?.focus({ preventScroll: true });
+    }
+  }
+
+  function closeDrawer() {
+    const id = state.sessionId;
+    location.hash = `#/p/${encodeURIComponent(state.projectId)}`;
+    requestAnimationFrame(() => content.querySelector(`[data-session="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }));
+  }
+
+  /* ---------- Actions ---------- */
+
+  let toastTimer;
+  function showToast(message) {
+    toast.innerHTML = `${icon('check', 15)}<span>${esc(message)}</span>`;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  async function copy(text, label, button) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    showToast(`${label} copied`);
+    if (button) {
+      const original = button.innerHTML;
+      button.innerHTML = icon('check', 14);
+      setTimeout(() => { button.innerHTML = original; }, 1200);
+    }
+  }
+
+  function handleClick(event) {
+    const copyButton = event.target.closest('[data-copy]');
+    if (copyButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      copy(copyButton.dataset.copy, copyButton.dataset.label || 'Copied', copyButton);
+      return;
+    }
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (action === 'retry') return refresh();
+    if (action === 'close') return closeDrawer();
+    if (action === 'clear') {
+      search.value = '';
+      state.filter = 'all';
+      return renderContent();
+    }
+    const filter = event.target.closest('[data-filter]')?.dataset.filter;
+    if (filter) {
+      state.filter = state.filter === filter ? 'all' : filter;
+      return renderContent();
+    }
+    if (event.target.closest('a')) return;
+    const row = event.target.closest('[data-session]');
+    if (row) location.hash = sessionHref(row.dataset.session);
+  }
+
+  content.addEventListener('click', handleClick);
+  drawer.addEventListener('click', handleClick);
+  $('backdrop').addEventListener('click', () => (state.sessionId ? closeDrawer() : shell.classList.remove('nav-open')));
+  $('menu-btn').addEventListener('click', () => shell.classList.toggle('nav-open'));
+  $('refresh-btn').addEventListener('click', refresh);
+  search.addEventListener('input', renderContent);
+  window.addEventListener('hashchange', applyRoute);
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refresh());
+
+  function moveFocus(step) {
+    const items = [...content.querySelectorAll('[data-nav]')];
+    if (!items.length) return;
+    const index = items.indexOf(document.activeElement);
+    const next = items[index === -1 ? (step > 0 ? 0 : items.length - 1) : Math.min(items.length - 1, Math.max(0, index + step))];
+    next.focus();
+    next.scrollIntoView({ block: 'nearest' });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    const typing = event.target.matches('input, textarea');
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      search.focus();
+      search.select();
+      return;
+    }
+    if (event.key === 'Escape') {
+      if (state.sessionId) return closeDrawer();
+      if (shell.classList.contains('nav-open')) return shell.classList.remove('nav-open');
+      if (typing && search.value) {
+        search.value = '';
+        return renderContent();
+      }
+      if (typing) return search.blur();
+      return;
+    }
+    if (typing) {
+      if (event.key === 'ArrowDown' || event.key === 'Enter') {
+        event.preventDefault();
+        moveFocus(1);
+      }
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === '/') {
+      event.preventDefault();
+      search.focus();
+    } else if (key === 'j' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveFocus(1);
+    } else if (key === 'k' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveFocus(-1);
+    } else if ((event.key === 'Enter' || event.key === ' ') && document.activeElement?.dataset.session) {
+      event.preventDefault();
+      location.hash = sessionHref(document.activeElement.dataset.session);
+    } else if (key === 'c') {
+      const id = state.sessionId || document.activeElement?.dataset.session;
+      if (id) copy(id, 'Session ID');
+    }
   });
 
-  async function route() {
-    const match = location.hash.match(/^#\/p\/(.+)$/);
-    try {
-      await (match ? showSessions(decodeURIComponent(match[1])) : showProjects());
-    } catch (error) {
-      app.innerHTML = `<a class="back" href="#/">← All projects</a><p class="error">Could not load: ${esc(error.message)}</p>`;
-    }
-  }
+  /* ---------- Theme ---------- */
 
-  window.addEventListener('hashchange', route);
-  setInterval(tickIdle, 30000);
-  route();
+  const THEMES = ['system', 'light', 'dark'];
+  const THEME_ICON = { system: 'monitor', light: 'sun', dark: 'moon' };
+  let theme = 'system';
+  try { theme = THEMES.includes(localStorage.getItem('theme')) ? localStorage.getItem('theme') : 'system'; } catch {}
+  function applyTheme() {
+    if (theme === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.dataset.theme = theme;
+    const button = $('theme-btn');
+    button.innerHTML = icon(THEME_ICON[theme], 16);
+    button.title = `Theme: ${theme[0].toUpperCase()}${theme.slice(1)}`;
+    button.setAttribute('aria-label', button.title);
+  }
+  $('theme-btn').addEventListener('click', () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    try { localStorage.setItem('theme', theme); } catch {}
+    applyTheme();
+  });
+  applyTheme();
+
+  /* ---------- Boot ---------- */
+
+  setInterval(() => document.visibilityState === 'visible' && refresh(), POLL_MS);
+  setInterval(tick, 15000);
+  render();
+  loadProjects().then(() => {
+    state.updatedAt = Date.now();
+    render();
+  });
+  applyRoute();
 </script>
 </body>
 </html>
