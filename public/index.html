@@ -1102,17 +1102,6 @@
           <dt>Idle for</dt><dd><span class="val" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></dd>
         </dl>
       </div>
-      <div class="section${pinClass('usage')}" data-section="usage">
-        <div class="section-title"><span>Usage</span><span>API-equivalent</span>${pinButton('usage')}</div>
-        ${s.usage && s.usage.output + s.usage.input + s.usage.cacheRead ? `<dl class="props">
-          <dt>Estimated cost</dt><dd><span class="val"><strong>${s.usage.cost === null ? '—' : money(s.usage.cost)}</strong>${s.usage.costIsPartial ? ' <span class="muted">(some models unpriced)</span>' : ''}</span></dd>
-          <dt>Output</dt><dd><span class="val">${tokens(s.usage.output)} tokens</span></dd>
-          <dt>Cache reads</dt><dd><span class="val">${tokens(s.usage.cacheRead)} tokens</span></dd>
-          <dt>Cache writes</dt><dd><span class="val">${tokens(s.usage.cacheWrite)} tokens</span></dd>
-          <dt>Input</dt><dd><span class="val">${tokens(s.usage.input)} tokens</span></dd>
-          <dt>Models</dt><dd><span class="val mono">${esc(s.usage.models.join(', ') || '—')}</span></dd>
-        </dl><div class="hint">Estimated from Anthropic API list prices. Subscription plans bill differently, and subagent work isn't included.</div>` : '<div class="none">No token usage recorded in this session.</div>'}
-      </div>
       <div class="section${pinClass('prs')}" data-section="prs">
         <div class="section-title"><span>Pull requests</span><span>${s.prs.length}</span>${pinButton('prs')}</div>
         ${s.prs.length ? `<div class="list">${s.prs.map((pr) => /^https:\/\//.test(pr.url)
@@ -1134,6 +1123,17 @@
       <div class="section${pinClass('mcps')}" data-section="mcps">
         <div class="section-title"><span>MCP servers used</span><span>${s.mcps.length}</span>${pinButton('mcps')}</div>
         ${s.mcps.length ? `<div class="chips">${s.mcps.map((m) => `<span class="chip chip-mcp" title="${esc(m)}">${icon('plug', 12)}<span>${esc(mcpName(m))}</span></span>`).join('')}</div>` : '<div class="none">This session did not call any MCP server.</div>'}
+      </div>
+      <div class="section${pinClass('usage')}" data-section="usage">
+        <div class="section-title"><span>Usage</span><span>API-equivalent</span>${pinButton('usage')}</div>
+        ${s.usage && s.usage.output + s.usage.input + s.usage.cacheRead ? `<dl class="props">
+          <dt>Estimated cost</dt><dd><span class="val"><strong>${s.usage.cost === null ? '—' : money(s.usage.cost)}</strong>${s.usage.costIsPartial ? ' <span class="muted">(some models unpriced)</span>' : ''}</span></dd>
+          <dt>Output</dt><dd><span class="val">${tokens(s.usage.output)} tokens</span></dd>
+          <dt>Cache reads</dt><dd><span class="val">${tokens(s.usage.cacheRead)} tokens</span></dd>
+          <dt>Cache writes</dt><dd><span class="val">${tokens(s.usage.cacheWrite)} tokens</span></dd>
+          <dt>Input</dt><dd><span class="val">${tokens(s.usage.input)} tokens</span></dd>
+          <dt>Models</dt><dd><span class="val mono">${esc(s.usage.models.join(', ') || '—')}</span></dd>
+        </dl><div class="hint">Estimated from Anthropic API list prices. Subscription plans bill differently, and subagent work isn't included.</div>` : '<div class="none">No token usage recorded in this session.</div>'}
       </div>
       <div class="section files-section${state.filesExpanded ? ' is-expanded' : ''}${pinClass('files')}" data-section="files">
         <div class="section-title"><span>Files changed</span><span>${s.filesChanged.length}${s.filesChanged.length ? `<button class="link-btn" type="button" data-action="toggle-files" aria-expanded="${state.filesExpanded}">${state.filesExpanded ? 'Collapse' : 'Expand'}</button>` : ''}</span>${pinButton('files')}</div>
