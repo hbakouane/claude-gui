@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -11,6 +11,26 @@ const cache = new Map();
 
 export function projectsRoot(env = process.env) {
   return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
+}
+
+export async function listProjects(root) {
+  const projects = await Promise.all((await projectDirs(root)).map(async (id) => {
+    const files = await sessionFiles(join(root, id));
+    if (files.length === 0) {
+      return null;
+    }
+    const newest = files.reduce((a, b) => (b.mtimeMs > a.mtimeMs ? b : a));
+    return {
+      id,
+      path: (await firstCwd(files)) ?? id,
+      sessionCount: files.length,
+      lastActivity: new Date(newest.mtimeMs).toISOString(),
+    };
+  }));
+
+  return projects
+    .filter(Boolean)
+    .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
 export async function parseSession(file) {
@@ -84,6 +104,42 @@ export async function parseSession(file) {
   return session;
 }
 
+async function projectDirs(root) {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+}
+
+async function sessionFiles(dir) {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const files = await Promise.all(entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .map(async (entry) => {
+      const path = join(dir, entry.name);
+      const info = await stat(path).catch(() => null);
+      return info && { path, mtimeMs: info.mtimeMs };
+    }));
+
+  return files.filter(Boolean).sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+async function firstCwd(files) {
+  for (const file of files) {
+    try {
+      for await (const line of createInterface({ input: createReadStream(file.path), crlfDelay: Infinity })) {
+        const cwd = line.includes('"cwd"') && safeParse(line)?.cwd;
+        if (cwd) {
+          return cwd;
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 function promptText(content) {
   const text = typeof content === 'string'
     ? content
@@ -100,4 +156,12 @@ function truncate(text) {
   const oneLine = text.replace(/\s+/g, ' ');
 
   return oneLine.length > TITLE_LENGTH ? `${oneLine.slice(0, TITLE_LENGTH - 1)}…` : oneLine;
+}
+
+function safeParse(line) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return null;
+  }
 }

@@ -3,7 +3,7 @@ import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { parseSession, projectsRoot } from '../src/sessions.js';
+import { listProjects, parseSession, projectsRoot } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
 const PROJECT = '-Users-me-code-app';
@@ -105,6 +105,35 @@ describe('parseSession', () => {
     const changed = await parseSession(file);
     assert.notEqual(changed, first);
     assert.equal(changed.title, 'Renamed');
+  });
+});
+
+describe('listProjects', () => {
+  it('lists projects by real folder path, newest first, skipping empty folders', async () => {
+    const projectsDir = await mkdtemp(join(tmpdir(), 'csd-projects-'));
+    const previousRoot = root;
+    root = projectsDir;
+    try {
+      await writeSession('-Users-me-old', 'a', lines({ type: 'user', cwd: '/Users/me/old', message: { content: 'hi' } }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await writeSession('-Users-me-new', 'b', lines({ type: 'mode' }, { type: 'user', cwd: '/Users/me/new', message: { content: 'hi' } }));
+      await writeSession('-Users-me-new', 'c', lines({ type: 'user', cwd: '/Users/me/new', message: { content: 'hi' } }));
+      await mkdir(join(projectsDir, '-Users-me-empty'));
+
+      const projects = await listProjects(projectsDir);
+
+      assert.deepEqual(projects.map(({ id, path, sessionCount }) => ({ id, path, sessionCount })), [
+        { id: '-Users-me-new', path: '/Users/me/new', sessionCount: 2 },
+        { id: '-Users-me-old', path: '/Users/me/old', sessionCount: 1 },
+      ]);
+    } finally {
+      root = previousRoot;
+      await rm(projectsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns no projects when the projects folder does not exist', async () => {
+    assert.deepEqual(await listProjects(join(root, 'missing')), []);
   });
 });
 
