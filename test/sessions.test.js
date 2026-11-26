@@ -3,7 +3,7 @@ import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { listProjects, parseSession, projectsRoot } from '../src/sessions.js';
+import { listProjects, listSessions, parseSession, projectsRoot } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
 const PROJECT = '-Users-me-code-app';
@@ -136,6 +136,24 @@ describe('listProjects', () => {
 
   it('returns no projects when the projects folder does not exist', async () => {
     assert.deepEqual(await listProjects(join(root, 'missing')), []);
+  });
+});
+
+describe('listSessions', () => {
+  it('lists only top-level session files, newest activity first', async () => {
+    await writeSession('-sorting', 'older', lines({ type: 'user', message: { content: 'a' }, timestamp: '2026-11-01T00:00:00.000Z' }));
+    await writeSession('-sorting', 'newer', lines({ type: 'user', message: { content: 'b' }, timestamp: '2026-11-02T00:00:00.000Z' }));
+    await mkdir(join(root, '-sorting', 'newer', 'subagents'), { recursive: true });
+    await writeFile(join(root, '-sorting', 'newer', 'subagents', 'agent.jsonl'), lines({ type: 'user' }));
+
+    const sessions = await listSessions(root, '-sorting');
+
+    assert.deepEqual(sessions.map((session) => session.id), ['newer', 'older']);
+  });
+
+  it('returns null for a folder that is not a project', async () => {
+    assert.equal(await listSessions(root, '../..'), null);
+    assert.equal(await listSessions(root, 'nope'), null);
   });
 });
 

@@ -7,6 +7,7 @@ import { createInterface } from 'node:readline';
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
 const MCP_TOOL = /^mcp__(.+?)__/;
 const TITLE_LENGTH = 80;
+const PARALLEL_FILES = 8;
 
 const cache = new Map();
 
@@ -32,6 +33,20 @@ export async function listProjects(root) {
   return projects
     .filter((project) => project && !TEMP_PATH.test(project.path))
     .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+}
+
+export async function listSessions(root, id) {
+  if (!(await projectDirs(root)).includes(id)) {
+    return null;
+  }
+  const files = await sessionFiles(join(root, id));
+  const sessions = [];
+  for (let i = 0; i < files.length; i += PARALLEL_FILES) {
+    const batch = await Promise.allSettled(files.slice(i, i + PARALLEL_FILES).map((file) => parseSession(file.path)));
+    sessions.push(...batch.filter((result) => result.status === 'fulfilled').map((result) => result.value));
+  }
+
+  return sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
 export async function parseSession(file) {
