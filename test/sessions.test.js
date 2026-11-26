@@ -68,6 +68,7 @@ describe('parseSession', () => {
       mcps: ['claude_ai_Linear', 'supabase'],
       artifacts: [{ url: 'https://claude.ai/code/artifact/abc', name: 'report', change: 'created', version: 1 }],
       filesChanged: [],
+      skills: [],
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, models: [], cost: null, costIsPartial: false },
       lastPrompt: 'Fix the login bug please',
       lastReply: null,
@@ -163,6 +164,31 @@ describe('parseSession', () => {
       { path: '/Users/me/app/README.md', edits: 1 },
     ]);
     assert.deepEqual(session.usage, { input: 20, output: 2000, cacheRead: 4000, cacheWrite: 1000, models: ['claude-opus-5-5'], cost: 0.0489, costIsPartial: false });
+  });
+
+  it('lists the skills that were loaded, by you or by Claude, once per load', async () => {
+    const load = (path, extra = {}) => ({ type: 'user', isMeta: true, message: { content: [{ type: 'text', text: `Base directory for this skill: ${path}\n\n# Skill` }] }, ...extra });
+    const file = await writeSession('-skills', 'skills', lines(
+      { type: 'user', message: { content: '<command-message>task-env</command-message>\n<command-name>/task-env</command-name>' } },
+      load('/Users/me/.claude/skills/task-env'),
+      { type: 'user', message: { content: '<command-name>/mcp</command-name>' } },
+      { type: 'user', message: { content: '<local-command-stdout>Reconnected</local-command-stdout>' } },
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 's1', name: 'Skill', input: { skill: 'qa-plan' } }] } },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 's1', content: 'Launching skill: qa-plan' }] } },
+      load('/Users/me/.claude/skills/qa-plan', { sourceToolUseID: 's1' }),
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 's2', name: 'Skill', input: { skill: 'missing' } }] } },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 's2', is_error: true, content: 'Unknown skill' }] } },
+      { type: 'user', message: { content: '<command-message>ponytail:ponytail-review</command-message>\n<command-name>/ponytail:ponytail-review</command-name>' } },
+      load('/Users/me/.claude/plugins/cache/ponytail/skills/ponytail-review'),
+      { type: 'user', message: { content: '<command-name>/qa-plan</command-name>' } },
+      load('/Users/me/.claude/skills/qa-plan'),
+    ));
+
+    assert.deepEqual((await parseSession(file)).skills, [
+      { name: 'task-env', uses: 1, by: ['you'] },
+      { name: 'qa-plan', uses: 2, by: ['you', 'claude'] },
+      { name: 'ponytail:ponytail-review', uses: 1, by: ['you'] },
+    ]);
   });
 
   it('uses a placeholder title and the file time when the session has neither', async () => {

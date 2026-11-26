@@ -19,6 +19,8 @@ const ARTIFACT_URL = /\bat (https:\/\/claude\.ai\/[^\s)]+)/;
 const ARTIFACT_VERSION = /\(Version (\d+)/;
 const ARTIFACT_RANK = { viewed: 0, updated: 1, created: 2 };
 const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+const SKILL_LOAD = /^Base directory for this skill: (\S+)/;
+const COMMAND_NAME = /<command-name>\/?([^<\s]+)<\/command-name>/;
 
 const cache = new Map();
 
@@ -102,6 +104,9 @@ export async function parseSession(file) {
   const fileCalls = new Map();
   const files = new Map();
   const usageById = new Map();
+  const skillCalls = new Map();
+  const skills = new Map();
+  let lastCommand = null;
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -152,10 +157,32 @@ export async function parseSession(file) {
         if (block.name === 'Artifact') {
           artifactCalls.set(block.id, block.input ?? {});
         }
+        if (block.name === 'Skill' && block.input?.skill) {
+          skillCalls.set(block.id, String(block.input.skill).replace(/^\//, ''));
+        }
         const filePath = FILE_TOOLS.has(block.name) && (block.input?.file_path ?? block.input?.notebook_path);
         if (filePath) {
           fileCalls.set(block.id, { path: resolve(event.cwd ?? cwd ?? '/', String(filePath)), edits: block.name === 'MultiEdit' ? block.input.edits?.length || 1 : 1 });
         }
+      }
+    }
+    if (event.type === 'user' && !event.isSidechain) {
+      const text = promptText(event.message?.content, true) ?? '';
+      const command = !event.isMeta && COMMAND_NAME.exec(text)?.[1];
+      if (command) {
+        lastCommand = command;
+      }
+      const skillPath = event.isMeta && SKILL_LOAD.exec(text)?.[1];
+      if (skillPath) {
+        const folder = basename(skillPath);
+        const byClaude = Boolean(event.sourceToolUseID);
+        const typed = !byClaude && lastCommand && (lastCommand === folder || lastCommand.endsWith(`:${folder}`)) ? lastCommand : null;
+        const name = (byClaude ? skillCalls.get(event.sourceToolUseID) : typed) ?? folder;
+        const skill = skills.get(name) ?? { name, uses: 0, by: new Set() };
+        skill.uses++;
+        skill.by.add(byClaude ? 'claude' : 'you');
+        skills.set(name, skill);
+        lastCommand = byClaude ? lastCommand : null;
       }
     }
     if (event.type === 'assistant' && event.message?.usage) {
@@ -211,6 +238,7 @@ export async function parseSession(file) {
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     artifacts: [...artifacts.values()],
     filesChanged: [...files.values()],
+    skills: [...skills.values()].map((skill) => ({ ...skill, by: ['you', 'claude'].filter((who) => skill.by.has(who)) })),
     usage: summarizeUsage(usageById.values()),
     lastPrompt,
     lastReply,
