@@ -416,6 +416,18 @@ describe('searchSessions', () => {
     assert.deepEqual(await searchSessions(searchRoot, '   '), { results: [], total: 0, scanned: 0, truncated: false });
   });
 
+  it('filters by project, by who wrote the message, and by date', async () => {
+    const kinds = async (filters) => (await searchSessions(searchRoot, 'sync slow', filters)).results.map((r) => `${r.sessionId}:${r.kind}`);
+
+    assert.deepEqual(await kinds({ project: '-Users-me-api' }), ['api:assistant', 'api:user']);
+    assert.deepEqual(await kinds({ who: 'you' }), ['web:command', 'api:user']);
+    assert.deepEqual(await kinds({ who: 'claude' }), ['api:assistant']);
+    assert.deepEqual(await kinds({ from: '2026-11-21T00:00:00.000Z' }), ['web:command']);
+    assert.deepEqual(await kinds({ to: '2026-11-20T10:00:02.000Z' }), ['api:user']);
+    assert.deepEqual(await kinds({ from: '2026-11-20T10:00:03.000Z', to: '2026-11-20T23:59:59.999Z', who: 'claude' }), ['api:assistant']);
+    assert.deepEqual(await kinds({ project: 'nope' }), []);
+  });
+
   it('caps the number of results', async () => {
     const { results, total, truncated } = await searchSessions(searchRoot, 'sync', { limit: 2 });
 
@@ -481,6 +493,16 @@ describe('server', () => {
     assert.equal(JSON.parse((await get('/api/search')).body).total, 0);
   });
 
+  it('applies search filters, and rejects bad dates and unknown authors', async () => {
+    const search = async (params) => JSON.parse((await get(`/api/search?q=login&${params}`)).body);
+
+    assert.equal((await search(`project=${encodeURIComponent(PROJECT)}&who=you`)).total, 1);
+    assert.equal((await search('who=claude')).total, 0);
+    assert.equal((await search('from=2030-01-01')).total, 0);
+    assert.equal((await get('/api/search?q=login&from=yesterday')).status, 400);
+    assert.equal((await get('/api/search?q=login&to=2026-13-45')).status, 400);
+    assert.equal((await get('/api/search?q=login&who=everyone')).status, 400);
+  });
 
   it('serves recently active sessions and clamps the window', async () => {
     const response = await get('/api/recent?hours=99999');

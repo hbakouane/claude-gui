@@ -286,6 +286,13 @@
   .c-idle .waiting { color: var(--amber); font-weight: 600; }
   .pill.waiting { background: var(--amber-soft); color: var(--amber); }
   .chip-archived { color: var(--text-2); background: var(--hover); border-color: transparent; font-weight: 500; }
+  .search-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -10px 0 18px; }
+  .search-filters select, .search-filters input { height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: 13px var(--sans); }
+  .search-filters select:focus, .search-filters input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel); }
+  .seg button { height: 30px; padding: 0 12px; border: 0; background: transparent; color: var(--text-2); font: 550 13px var(--sans); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-strong); }
   .field-check + .field-help, .field-sub { margin-left: 25px; }
   .field-input:disabled { opacity: .55; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
@@ -566,7 +573,7 @@
 
   const $ = (id) => document.getElementById(id);
   const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
-  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false, settings: null };
+  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false, settings: null, searchFilters: { project: '', time: 'any', from: '', to: '', who: '' } };
   try { state.showTools = localStorage.getItem('showTools') === 'true'; } catch {}
   state.pinned = new Set();
   try { state.pinned = new Set(JSON.parse(localStorage.getItem('pinnedSections') ?? '[]')); } catch {}
@@ -719,17 +726,49 @@
     return terms.length ? esc(text).replace(new RegExp(terms.join('|'), 'gi'), (found) => `<mark>${found}</mark>`) : esc(text);
   }
 
+  const TIME_RANGES = { any: ['Any time'], day: ['Past 24 hours', 1], week: ['Past week', 7], month: ['Past month', 30], custom: ['Custom dates…'] };
+  const WHO = [['', 'Anyone'], ['you', 'You'], ['claude', 'Claude']];
+  const searchKey = (query) => `${query}|${JSON.stringify(state.searchFilters)}`;
+  const filtersActive = () => Boolean(state.searchFilters.project || state.searchFilters.who || state.searchFilters.time !== 'any');
+
+  function searchUrl(query) {
+    const f = state.searchFilters;
+    const params = new URLSearchParams({ q: query });
+    if (f.project) params.set('project', f.project);
+    if (f.who) params.set('who', f.who);
+    const days = TIME_RANGES[f.time]?.[1];
+    if (days) params.set('from', new Date(Date.now() - days * 86400000).toISOString());
+    if (f.time === 'custom' && f.from) params.set('from', new Date(`${f.from}T00:00:00`).toISOString());
+    if (f.time === 'custom' && f.to) params.set('to', new Date(`${f.to}T23:59:59.999`).toISOString());
+    return `/api/search?${params}`;
+  }
+
+  function searchFiltersBar() {
+    const f = state.searchFilters;
+    const projects = (state.projects ?? []).map((p) => `<option value="${esc(p.id)}"${p.id === f.project ? ' selected' : ''}>${esc(baseName(p.path))}</option>`).join('');
+    return `<div class="search-filters" role="group" aria-label="Search filters">
+      <select data-search-filter="project" aria-label="Project"><option value="">All projects</option>${projects}</select>
+      <select data-search-filter="time" aria-label="When">${Object.entries(TIME_RANGES).map(([value, [label]]) => `<option value="${value}"${value === f.time ? ' selected' : ''}>${label}</option>`).join('')}</select>
+      ${f.time === 'custom' ? `<input type="date" data-search-filter="from" value="${esc(f.from)}" aria-label="From"><input type="date" data-search-filter="to" value="${esc(f.to)}" aria-label="To">` : ''}
+      <span class="seg" role="group" aria-label="Written by">${WHO.map(([value, label]) => `<button type="button" data-search-who="${value}" aria-pressed="${f.who === value}">${label}</button>`).join('')}</span>
+      ${filtersActive() ? '<button class="link-btn" type="button" data-action="reset-search-filters">Reset filters</button>' : ''}
+    </div>`;
+  }
+
   function renderSearch() {
     const query = search.value.trim();
     const result = state.search;
-    const head = (title, detail) => `<div class="page-head"><div><h1>${title}</h1><p>${detail}</p></div></div>`;
-    if (!result || result.query !== query || (result.loading && !result.data)) {
+    const head = (title, detail) => `<div class="page-head"><div><h1>${title}</h1><p>${detail}</p></div></div>${searchFiltersBar()}`;
+    if (!result || result.key !== searchKey(query) || (result.loading && !result.data)) {
       return `${head('Searching…', 'Looking through every conversation. The first search reads all your sessions and can take a few seconds.')}
         ${Array.from({ length: 3 }, () => '<div class="result-card"><div class="result-head"><span class="sk" style="height:13px;width:40%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:90%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:70%"></span></div></div>').join('')}`;
     }
-    if (result.error) return emptyState('alert', 'Search failed', esc(result.error.message), `<button class="btn" data-action="clear">Clear search</button>`);
+    if (result.error) return `${searchFiltersBar()}${emptyState('alert', 'Search failed', esc(result.error.message), `<button class="btn" data-action="clear">Clear search</button>`)}`;
     const { results, total, scanned, truncated } = result.data;
-    if (!results.length) return emptyState('search', 'No matches', `Nothing you or Claude said in ${plural(scanned, 'session')} matches “${esc(query)}”.`, '<button class="btn" data-action="clear">Clear search</button>');
+    if (!results.length) {
+      const reset = filtersActive() ? '<button class="btn" data-action="reset-search-filters">Reset filters</button>' : '<button class="btn" data-action="clear">Clear search</button>';
+      return `${head('No matches', `Searched ${plural(scanned, 'session')}`)}${emptyState('search', 'No matches', `Nothing ${state.searchFilters.who === 'you' ? 'you' : state.searchFilters.who === 'claude' ? 'Claude' : 'you or Claude'} said matches “${esc(query)}”${filtersActive() ? ' with these filters' : ''}.`, reset)}`;
+    }
     const groups = new Map();
     for (const match of results) {
       if (!groups.has(match.sessionId)) groups.set(match.sessionId, { ...match, matches: [] });
@@ -747,23 +786,24 @@
   }
 
   let searchTimer;
-  function scheduleSearch() {
+  function scheduleSearch(delay = 300) {
     clearTimeout(searchTimer);
     const query = search.value.trim();
     if (state.projectId || query.length < 2) return;
     searchTimer = setTimeout(async () => {
-      state.search = { query, loading: true, data: state.search?.query === query ? state.search.data : null };
+      const key = searchKey(query);
+      state.search = { key, loading: true, data: state.search?.key === key ? state.search.data : null };
       renderContent();
       try {
-        const data = await getJSON(`/api/search?q=${encodeURIComponent(query)}`);
-        if (search.value.trim() !== query) return;
-        state.search = { query, data };
+        const data = await getJSON(searchUrl(query));
+        if (searchKey(search.value.trim()) !== key) return;
+        state.search = { key, data };
       } catch (error) {
-        if (search.value.trim() !== query) return;
-        state.search = { query, error };
+        if (searchKey(search.value.trim()) !== key) return;
+        state.search = { key, error };
       }
       if (!state.projectId) renderContent();
-    }, 300);
+    }, delay);
   }
 
   function resumeButton(projectId, sessionId, label = 'Resume') {
@@ -1667,8 +1707,17 @@
       copy(copyButton.dataset.copy, copyButton.dataset.label || 'Copied', copyButton);
       return;
     }
+    const who = event.target.closest('[data-search-who]');
+    if (who) {
+      state.searchFilters.who = who.dataset.searchWho;
+      return scheduleSearch(0);
+    }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'retry') return refresh();
+    if (action === 'reset-search-filters') {
+      state.searchFilters = { project: '', time: 'any', from: '', to: '', who: '' };
+      return scheduleSearch(0);
+    }
     if (action === 'expand-chips') {
       const meta = event.target.closest('.s-meta');
       meta.classList.add('expanded');
@@ -1731,6 +1780,11 @@
     if (event.target.matches?.('details.file-diff')) fillFileDiff(event.target);
   }, true);
   content.addEventListener('change', (event) => {
+    const filter = event.target.dataset?.searchFilter;
+    if (filter) {
+      state.searchFilters[filter] = event.target.value;
+      return scheduleSearch(0);
+    }
     if (event.target.id !== 'tools-toggle') return;
     state.showTools = event.target.checked;
     try { localStorage.setItem('showTools', String(state.showTools)); } catch {}

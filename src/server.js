@@ -19,6 +19,7 @@ const MAX_QUERY_LENGTH = 200;
 const MAX_PATH_LENGTH = 1000;
 const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port', 'notifications', 'archive', 'archiveDays'];
 const BOOLEAN_SETTINGS = ['openBrowser', 'notifications', 'archive'];
+const SEARCH_WHO = new Set(['you', 'claude']);
 const HEARTBEAT_MS = 25_000;
 export const RESUME_HEADER = 'claude-gui';
 
@@ -50,7 +51,10 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
         return send(res, 200, await listRecent(root, hours, Date.now(), archived));
       }
       if (pathname === '/api/search') {
-        return send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH), archived));
+        const filters = searchFilters(url.searchParams);
+        return filters.error
+          ? send(res, 400, { error: filters.error })
+          : send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH), { ...filters, ...archived }));
       }
       if (pathname === '/api/events') {
         return streamEvents(req, res, notifier);
@@ -112,6 +116,32 @@ function createArchiver(settings, intervalMs) {
     },
     run,
   };
+}
+
+function searchFilters(params) {
+  const filters = {};
+  const project = params.get('project');
+  if (project) {
+    filters.project = project.slice(0, MAX_PATH_LENGTH);
+  }
+  for (const key of ['from', 'to']) {
+    const value = params.get(key);
+    if (value && Number.isNaN(Date.parse(value))) {
+      return { error: `${key} must be a date, like 2026-11-20` };
+    }
+    if (value) {
+      filters[key] = value;
+    }
+  }
+  const who = params.get('who');
+  if (who && !SEARCH_WHO.has(who)) {
+    return { error: 'who must be you or claude' };
+  }
+  if (who) {
+    filters.who = who;
+  }
+
+  return filters;
 }
 
 // Server-sent events stay delivered in background tabs, unlike timers, so a hidden dashboard can still notify.

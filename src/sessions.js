@@ -456,6 +456,7 @@ const searchCache = new Map();
 const SEARCH_LIMIT = 200;
 const SEARCH_TERMS = 10;
 const SEARCHABLE = new Set(['user', 'assistant', 'command']);
+const SEARCH_WHO = { you: new Set(['user', 'command']), claude: new Set(['assistant']) };
 
 export async function readConversation(root, projectId, sessionId, { archive = null } = {}) {
   const file = await sessionPath(root, projectId, sessionId, archive);
@@ -484,16 +485,25 @@ export async function sessionPath(root, projectId, sessionId, archive = null) {
   return null;
 }
 
-export async function searchSessions(root, query, { limit = SEARCH_LIMIT, archive = null } = {}) {
+export async function searchSessions(root, query, { limit = SEARCH_LIMIT, project = null, from = null, to = null, who = null, archive = null } = {}) {
   const terms = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, SEARCH_TERMS);
   const matches = [];
   let scanned = 0;
   if (!terms.length) {
     return { results: [], total: 0, scanned, truncated: false };
   }
-  const wanted = (text) => terms.every((term) => text.lower.includes(term));
+  const kinds = SEARCH_WHO[who] ?? null;
+  const fromMs = from ? Date.parse(from) : -Infinity;
+  const toMs = to ? Date.parse(to) : Infinity;
+  const wanted = (text) => (!kinds || kinds.has(text.kind))
+    && ((fromMs === -Infinity && toMs === Infinity) || (Date.parse(text.at) >= fromMs && Date.parse(text.at) <= toMs))
+    && terms.every((term) => text.lower.includes(term));
   for (const p of await listProjects(root, { archive })) {
-    const files = await sessionFiles(root, p.id, archive);
+    if (project && p.id !== project) {
+      continue;
+    }
+    // A file last written before the window starts can't hold a message inside it.
+    const files = (await sessionFiles(root, p.id, archive)).filter((file) => file.mtimeMs >= fromMs);
     for (let i = 0; i < files.length; i += PARALLEL_FILES) {
       const batch = await Promise.allSettled(files.slice(i, i + PARALLEL_FILES).map(async ({ path }) => ({ session: await parseSession(path), texts: await searchIndex(path) })));
       for (const result of batch.filter((r) => r.status === 'fulfilled')) {
