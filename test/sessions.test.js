@@ -67,6 +67,8 @@ describe('parseSession', () => {
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       mcps: ['claude_ai_Linear', 'supabase'],
       artifacts: [{ url: 'https://claude.ai/code/artifact/abc', name: 'report', change: 'created', version: 1 }],
+      filesChanged: [],
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, models: [], cost: null, costIsPartial: false },
       lastPrompt: 'Fix the login bug please',
       lastReply: null,
       turnOpen: false,
@@ -134,6 +136,33 @@ describe('parseSession', () => {
 
     assert.equal(lastPrompt, 'Look at this: error log');
     assert.equal(lastReply, 'Result Fixed the parse_tenant bug: $a = 1;');
+  });
+
+  it('counts each message usage once and lists the files changed successfully', async () => {
+    const usage = { input_tokens: 10, output_tokens: 1000, cache_read_input_tokens: 2000, cache_creation_input_tokens: 500, cache_creation: { ephemeral_1h_input_tokens: 500 } };
+    const file = await writeSession('-usage', 'work', lines(
+      { type: 'assistant', cwd: '/Users/me/app', message: { id: 'm1', model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'a' }] } },
+      { type: 'assistant', cwd: '/Users/me/app', message: { id: 'm1', model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: 'src/a.js', old_string: 'x', new_string: 'y' } }] } },
+      { type: 'assistant', cwd: '/Users/me/app', message: { id: 'm2', model: 'claude-opus-5-5', usage, content: [
+        { type: 'tool_use', id: 'e2', name: 'MultiEdit', input: { file_path: '/Users/me/app/src/a.js', edits: [{}, {}] } },
+        { type: 'tool_use', id: 'w1', name: 'Write', input: { file_path: '/Users/me/app/README.md', content: 'hi' } },
+        { type: 'tool_use', id: 'e3', name: 'Edit', input: { file_path: '/Users/me/app/broken.js' } },
+      ] } },
+      { type: 'user', message: { content: [
+        { type: 'tool_result', tool_use_id: 'e1', content: 'ok' },
+        { type: 'tool_result', tool_use_id: 'e2', content: 'ok' },
+        { type: 'tool_result', tool_use_id: 'w1', content: 'ok' },
+        { type: 'tool_result', tool_use_id: 'e3', is_error: true, content: 'old_string not found' },
+      ] } },
+    ));
+
+    const session = await parseSession(file);
+
+    assert.deepEqual(session.filesChanged, [
+      { path: '/Users/me/app/src/a.js', edits: 3 },
+      { path: '/Users/me/app/README.md', edits: 1 },
+    ]);
+    assert.deepEqual(session.usage, { input: 20, output: 2000, cacheRead: 4000, cacheWrite: 1000, models: ['claude-opus-5-5'], cost: 0.0489, costIsPartial: false });
   });
 
   it('uses a placeholder title and the file time when the session has neither', async () => {

@@ -3,6 +3,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { summarizeUsage } from './pricing.js';
 
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
 const MCP_TOOL = /^mcp__(.+?)__/;
@@ -17,6 +18,7 @@ const PLAIN_PATH = /^[\w@%+=:,./~-]+$/;
 const ARTIFACT_URL = /\bat (https:\/\/claude\.ai\/[^\s)]+)/;
 const ARTIFACT_VERSION = /\(Version (\d+)/;
 const ARTIFACT_RANK = { viewed: 0, updated: 1, created: 2 };
+const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 
 const cache = new Map();
 
@@ -97,6 +99,9 @@ export async function parseSession(file) {
   const worktrees = new Set();
   const artifacts = new Map();
   const artifactCalls = new Map();
+  const fileCalls = new Map();
+  const files = new Map();
+  const usageById = new Map();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -147,13 +152,29 @@ export async function parseSession(file) {
         if (block.name === 'Artifact') {
           artifactCalls.set(block.id, block.input ?? {});
         }
+        const filePath = FILE_TOOLS.has(block.name) && (block.input?.file_path ?? block.input?.notebook_path);
+        if (filePath) {
+          fileCalls.set(block.id, { path: resolve(event.cwd ?? cwd ?? '/', String(filePath)), edits: block.name === 'MultiEdit' ? block.input.edits?.length || 1 : 1 });
+        }
       }
+    }
+    if (event.type === 'assistant' && event.message?.usage) {
+      usageById.set(event.message.id ?? `line-${usageById.size}`, { model: event.message.model, usage: event.message.usage });
     }
     if (event.type === 'user' && Array.isArray(event.message?.content)) {
       for (const block of event.message.content) {
-        const call = block?.type === 'tool_result' && !block.is_error && artifactCalls.get(block.tool_use_id);
-        if (call) {
-          recordArtifact(artifacts, call, resultText(block.content));
+        if (block?.type !== 'tool_result' || block.is_error) {
+          continue;
+        }
+        const artifactCall = artifactCalls.get(block.tool_use_id);
+        if (artifactCall) {
+          recordArtifact(artifacts, artifactCall, resultText(block.content));
+        }
+        const fileCall = fileCalls.get(block.tool_use_id);
+        if (fileCall) {
+          const file = files.get(fileCall.path) ?? { path: fileCall.path, edits: 0 };
+          file.edits += fileCall.edits;
+          files.set(fileCall.path, file);
         }
       }
     }
@@ -189,6 +210,8 @@ export async function parseSession(file) {
     prs: [...prs.values()],
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     artifacts: [...artifacts.values()],
+    filesChanged: [...files.values()],
+    usage: summarizeUsage(usageById.values()),
     lastPrompt,
     lastReply,
     turnOpen,
