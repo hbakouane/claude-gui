@@ -170,7 +170,6 @@ src/resume.js       Opens a terminal window that resumes a session
 src/editor.js       Opens a folder in your editor
 public/index.html   The whole web app: one file, no build step
 test/               Tests, using Node's built-in test runner
-site/               The project's landing page and screenshots
 ```
 
 ### Principles
