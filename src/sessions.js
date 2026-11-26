@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const MCP_TOOL = /^mcp__(.+?)__/;
+const TITLE_LENGTH = 80;
 
 export function projectsRoot(env = process.env) {
   return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
@@ -14,6 +15,7 @@ export async function parseSession(file) {
   const info = await stat(file);
 
   let title = null;
+  let firstPrompt = null;
   let cwd = null;
   let gitBranch = null;
   let isWorktree = false;
@@ -56,11 +58,14 @@ export async function parseSession(file) {
         }
       }
     }
+    if (firstPrompt === null && event.type === 'user' && !event.isMeta && !event.isSidechain) {
+      firstPrompt = promptText(event.message?.content);
+    }
   }
 
   const session = {
     id: basename(file, '.jsonl'),
-    title: title ?? 'Untitled session',
+    title: title ?? truncate(firstPrompt) ?? 'Untitled session',
     cwd,
     gitBranch,
     isWorktree,
@@ -70,4 +75,22 @@ export async function parseSession(file) {
   };
 
   return session;
+}
+
+function promptText(content) {
+  const text = typeof content === 'string'
+    ? content
+    : Array.isArray(content) ? content.find((block) => block?.type === 'text')?.text : null;
+  const trimmed = text?.trim();
+
+  return trimmed && !trimmed.startsWith('<') ? trimmed : null;
+}
+
+function truncate(text) {
+  if (!text) {
+    return null;
+  }
+  const oneLine = text.replace(/\s+/g, ' ');
+
+  return oneLine.length > TITLE_LENGTH ? `${oneLine.slice(0, TITLE_LENGTH - 1)}…` : oneLine;
 }

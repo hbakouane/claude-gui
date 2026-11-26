@@ -60,6 +60,23 @@ describe('parseSession', () => {
     });
   });
 
+  it('falls back to the first real prompt when there is no ai-title', async () => {
+    const longPrompt = `Investigate ${'why the nightly sync is slow '.repeat(10)}`;
+    const file = await writeSession('-titles', 'no-title', lines(
+      { type: 'user', message: { content: '<system-reminder>ignore</system-reminder>' }, timestamp: '2026-11-20T10:00:00.000Z' },
+      { type: 'user', message: { content: longPrompt }, timestamp: '2026-11-20T10:00:01.000Z' },
+    ));
+
+    const { title, isWorktree, prs, mcps } = await parseSession(file);
+
+    assert.equal(title.length, 80);
+    assert.ok(title.startsWith('Investigate why the nightly sync'));
+    assert.ok(title.endsWith('…'));
+    assert.equal(isWorktree, false);
+    assert.deepEqual(prs, []);
+    assert.deepEqual(mcps, []);
+  });
+
   it('uses a placeholder title and the file time when the session has neither', async () => {
     const file = await writeSession('-titles', 'empty', lines({ type: 'mode', mode: 'normal' }));
 
