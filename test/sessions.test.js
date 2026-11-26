@@ -53,6 +53,7 @@ describe('parseSession', () => {
       title: 'Fix login bug',
       cwd: '/Users/me/code/app',
       gitBranch: 'fix/login',
+      isWorktree: true,
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       lastActivity: '2026-11-20T11:31:00.000Z',
     });

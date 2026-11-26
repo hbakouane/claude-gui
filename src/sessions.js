@@ -14,6 +14,7 @@ export async function parseSession(file) {
   let title = null;
   let cwd = null;
   let gitBranch = null;
+  let isWorktree = false;
   let lastTimestamp = 0;
   const prs = new Map();
 
@@ -41,6 +42,9 @@ export async function parseSession(file) {
     if (event.type === 'pr-link' && event.prUrl) {
       prs.set(event.prUrl, { url: event.prUrl, number: event.prNumber ?? null, repository: event.prRepository ?? null });
     }
+    if (event.attachment?.type === 'environment') {
+      isWorktree = event.attachment.snapshot?.isWorktree === true;
+    }
   }
 
   const session = {
@@ -48,6 +52,7 @@ export async function parseSession(file) {
     title: title ?? 'Untitled session',
     cwd,
     gitBranch,
+    isWorktree,
     prs: [...prs.values()],
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
