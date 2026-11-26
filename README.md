@@ -8,7 +8,9 @@ For each session it shows:
 - Folder
 - Git branch
 - PR links
-- Whether it ran in a git worktree
+- Git worktrees it created or entered, and whether they're still on disk
+- Artifacts it created, updated or opened
+- Whether Claude is still working on it
 - Last activity
 - Idle time
 - MCP servers used
