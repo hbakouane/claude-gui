@@ -191,3 +191,150 @@ function safeParse(line) {
     return null;
   }
 }
+
+const TOOL_INPUT_LIMIT = 4000;
+const TOOL_RESULT_LIMIT = 6000;
+const SUMMARY_LENGTH = 160;
+const conversationCache = new Map();
+
+export async function readConversation(root, projectId, sessionId) {
+  if (!(await projectDirs(root)).includes(projectId)) {
+    return null;
+  }
+  const dir = join(root, projectId);
+  const names = await readdir(dir).catch(() => []);
+  if (!names.includes(`${sessionId}.jsonl`)) {
+    return null;
+  }
+
+  return parseConversation(join(dir, `${sessionId}.jsonl`));
+}
+
+export async function parseConversation(file) {
+  const info = await stat(file);
+  const cached = conversationCache.get(file);
+  if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs) {
+    return cached.items;
+  }
+
+  const items = [];
+  const tools = new Map();
+
+  for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (event.isSidechain || event.isMeta) {
+      continue;
+    }
+    const at = event.timestamp ?? null;
+
+    if (event.type === 'assistant') {
+      for (const block of blocks(event.message?.content)) {
+        if (block.type === 'text' && block.text?.trim()) {
+          items.push({ kind: 'assistant', text: block.text, at });
+        } else if (block.type === 'tool_use') {
+          const tool = { kind: 'tool', id: block.id, name: block.name, summary: toolSummary(block.input), input: clip(JSON.stringify(block.input ?? {}, null, 2), TOOL_INPUT_LIMIT), result: null, isError: false, at };
+          tools.set(block.id, tool);
+          items.push(tool);
+        }
+      }
+      continue;
+    }
+
+    if (event.type !== 'user') {
+      continue;
+    }
+    const content = event.message?.content;
+    if (event.isCompactSummary) {
+      items.push({ kind: 'compact', text: typeof content === 'string' ? content : blocks(content).map((b) => b.text ?? '').join('\n'), at });
+      continue;
+    }
+    const parts = [];
+    for (const block of typeof content === 'string' ? [{ type: 'text', text: content }] : blocks(content)) {
+      if (block.type === 'tool_result') {
+        const tool = tools.get(block.tool_use_id);
+        if (tool) {
+          tool.result = clip(resultText(block.content), TOOL_RESULT_LIMIT);
+          tool.isError = block.is_error === true;
+        }
+      } else if (block.type === 'image') {
+        parts.push('[Image]');
+      } else if (block.type === 'text' && block.text) {
+        const special = specialMessage(block.text, at);
+        if (special) {
+          items.push(special);
+        } else if (!block.text.trim().startsWith('<')) {
+          parts.push(block.text.trim());
+        }
+      }
+    }
+    if (parts.length) {
+      items.push({ kind: 'user', text: parts.join('\n\n'), at });
+    }
+  }
+
+  conversationCache.set(file, { size: info.size, mtimeMs: info.mtimeMs, items });
+
+  return items;
+}
+
+function blocks(content) {
+  return Array.isArray(content) ? content.filter((block) => block && typeof block === 'object') : [];
+}
+
+function specialMessage(text, at) {
+  const trimmed = text.trim();
+  const command = /<command-name>([\s\S]*?)<\/command-name>/.exec(trimmed);
+  if (command && trimmed.startsWith('<command-')) {
+    const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(trimmed)?.[1]?.trim();
+    return { kind: 'command', text: [command[1].trim(), args].filter(Boolean).join(' '), at };
+  }
+  if (trimmed.startsWith('<task-notification>')) {
+    const summary = /<summary>([\s\S]*?)<\/summary>/.exec(trimmed)?.[1]?.trim();
+    return { kind: 'event', text: summary || 'Background task finished', at };
+  }
+  if (/^\[Request interrupted/.test(trimmed)) {
+    return { kind: 'event', text: 'Interrupted by user', at };
+  }
+
+  return null;
+}
+
+function toolSummary(input) {
+  if (!input || typeof input !== 'object') {
+    return '';
+  }
+  const preferred = ['description', 'command', 'file_path', 'path', 'pattern', 'query', 'url', 'skill', 'prompt'];
+  const value = preferred.map((key) => input[key]).find((v) => typeof v === 'string' && v.trim())
+    ?? Object.values(input).find((v) => typeof v === 'string' && v.trim());
+
+  return value ? truncateTo(value.replace(/\s+/g, ' ').trim(), SUMMARY_LENGTH) : '';
+}
+
+function resultText(content) {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  return blocks(content).map((block) => {
+    if (block.type === 'text') {
+      return block.text ?? '';
+    }
+    if (block.type === 'image') {
+      return '[Image]';
+    }
+    return block.tool_name ? `[${block.tool_name}]` : '';
+  }).filter(Boolean).join('\n');
+}
+
+function clip(text, limit) {
+  return text.length > limit ? `${text.slice(0, limit)}\n… ${text.length - limit} more characters` : text;
+}
+
+function truncateTo(text, limit) {
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}

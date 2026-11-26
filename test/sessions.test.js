@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createServer } from '../src/server.js';
-import { listProjects, listSessions, parseSession, projectsRoot } from '../src/sessions.js';
+import { listProjects, listSessions, parseConversation, parseSession, projectsRoot, readConversation } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
 const PROJECT = '-Users-me-code-app';
@@ -225,5 +225,67 @@ describe('server', () => {
     assert.equal((await get('/api/projects', `localhost:${port}`)).status, 200);
     assert.equal((await get('/api/projects', 'evil.example.com')).status, 403);
     assert.equal((await get('/api/projects', `evil.example.com:${port}`)).status, 403);
+  });
+});
+
+describe('parseConversation', () => {
+  const conversation = lines(
+    { type: 'user', isMeta: true, message: { content: 'Caveat: hidden' }, timestamp: '2026-11-20T10:00:00.000Z' },
+    { type: 'user', message: { content: '<command-message>ship</command-message>\n<command-name>/ship</command-name>\n<command-args>on that pr</command-args>' }, timestamp: '2026-11-20T10:00:01.000Z' },
+    { type: 'user', message: { content: '<local-command-stdout>noise</local-command-stdout>' }, timestamp: '2026-11-20T10:00:02.000Z' },
+    { type: 'user', message: { content: [{ type: 'text', text: 'Why is the sync slow?' }, { type: 'image', source: {} }] }, timestamp: '2026-11-20T10:00:03.000Z' },
+    { type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: 'Let me check.' }] }, timestamp: '2026-11-20T10:00:04.000Z' },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'git status', description: 'Show working tree status' } }] }, timestamp: '2026-11-20T10:00:05.000Z' },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't2', name: 'mcp__supabase__execute_sql', input: { query: 'select 1' } }] }, timestamp: '2026-11-20T10:00:06.000Z' },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'nothing to commit' }] }, timestamp: '2026-11-20T10:00:07.000Z' },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't2', is_error: true, content: [{ type: 'text', text: 'permission denied' }] }] }, timestamp: '2026-11-20T10:00:08.000Z' },
+    { type: 'assistant', isSidechain: true, message: { content: [{ type: 'text', text: 'subagent chatter' }] }, timestamp: '2026-11-20T10:00:09.000Z' },
+    { type: 'user', message: { content: '<task-notification>\n<task-id>x</task-id>\n<summary>Background build finished</summary>\n</task-notification>' }, timestamp: '2026-11-20T10:00:10.000Z' },
+    { type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] }, timestamp: '2026-11-20T10:00:11.000Z' },
+    { type: 'user', isCompactSummary: true, message: { content: 'Summary of earlier work' }, timestamp: '2026-11-20T10:00:12.000Z' },
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'All done.' }] }, timestamp: '2026-11-20T10:00:13.000Z' },
+  );
+
+  it('turns the transcript into chat items with tool results attached', async () => {
+    const items = await parseConversation(await writeSession('-chat', 'chat', `${conversation}{"type":"user","mess`));
+
+    assert.deepEqual(items.map(({ kind, text }) => [kind, text]), [
+      ['command', '/ship on that pr'],
+      ['user', 'Why is the sync slow?\n\n[Image]'],
+      ['assistant', 'Let me check.'],
+      ['tool', undefined],
+      ['tool', undefined],
+      ['event', 'Background build finished'],
+      ['event', 'Interrupted by user'],
+      ['compact', 'Summary of earlier work'],
+      ['assistant', 'All done.'],
+    ]);
+    assert.deepEqual(
+      items.filter((item) => item.kind === 'tool').map(({ name, summary, result, isError }) => ({ name, summary, result, isError })),
+      [
+        { name: 'Bash', summary: 'Show working tree status', result: 'nothing to commit', isError: false },
+        { name: 'mcp__supabase__execute_sql', summary: 'select 1', result: 'permission denied', isError: true },
+      ],
+    );
+    assert.equal(items[0].at, '2026-11-20T10:00:01.000Z');
+  });
+
+  it('clips very large tool output', async () => {
+    const items = await parseConversation(await writeSession('-chat', 'big', lines(
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'b', name: 'Read', input: { file_path: '/x' } }] } },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'b', content: 'x'.repeat(10000) }] } },
+    )));
+
+    assert.ok(items[0].result.length < 6100);
+    assert.match(items[0].result, /4000 more characters$/);
+  });
+
+  it('returns null for unknown projects and sessions', async () => {
+    await writeSession('-chat', 'known', lines({ type: 'mode' }));
+
+    assert.deepEqual(await readConversation(root, '-chat', 'known'), []);
+    assert.equal(await readConversation(root, '-chat', 'unknown'), null);
+    assert.equal(await readConversation(root, '-chat', '../-chat/known'), null);
+    assert.equal(await readConversation(root, 'nope', 'known'), null);
   });
 });
