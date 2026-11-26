@@ -36,7 +36,7 @@ claude-gui reads the transcripts already on your disk and turns them into a dash
 
 - **Every project at a glance.** The overview lists every folder you've used Claude Code in, with the sessions active in the last 24 hours right below.
 - **Where you stopped.** Every session row shows your last prompt and Claude's last reply. Hover to see them in full.
-- **One click back to work.** **Resume in terminal** opens a new terminal window running `claude --resume` in the right folder. **Open in editor** opens the session's folder, or any of its worktrees, in your editor.
+- **One click back to work.** **Resume** opens a new window of your terminal (Terminal, iTerm2, Ghostty, WezTerm, kitty, Alacritty and more) running `claude --resume` in the right folder. **Open in editor** opens the session's folder, or any of its worktrees, in your editor.
 - **The whole conversation.** Replies rendered as markdown, with tables and code. Tool calls you can expand to see their input and output. Slash commands, background tasks and context summaries, in place.
 - **Search everything.** Find any word you or Claude wrote, across every project. Narrow it down by project, date, or who wrote it. Results open the session at the matching message.
 - **What each session did.** Git branch, worktrees, pull requests, artifacts, skills, MCP servers, files changed with diffs, and an estimated cost.
@@ -84,7 +84,7 @@ To update, run the install command again. To remove it, run `npm uninstall -g cl
 | `--port <n>` | `4321` | The port to listen on |
 | `--no-open` | off | Don't open the browser on start |
 | `--claude-dir <path>` | `~/.claude` | The folder Claude Code keeps its data in |
-| `--terminal <app>` | `terminal` | On macOS, where Resume opens: `terminal` or `iterm` |
+| `--terminal <app>` | asks once | Where Resume opens a session, overriding Settings. macOS: `terminal`, `iterm`, `ghostty`, `wezterm`, `kitty`, `alacritty`. Linux: `default`, `gnome-terminal`, `konsole`, `ghostty`, `wezterm`, `kitty`, `alacritty`. Windows: `cmd`, `wt` |
 | `-h`, `--help` | | Show usage |
 
 ### Settings
@@ -95,6 +95,7 @@ Click the gear icon in the top bar to change these without touching the command 
 - **Editor:** used by the "Open in editor" buttons. VS Code, Cursor, Zed, Windsurf, Sublime Text, PhpStorm, WebStorm or IntelliJ IDEA.
 - **Port:** used the next time the dashboard starts.
 - **Open the browser on start:** on by default.
+- **Terminal:** where Resume opens a session. The first time you click Resume, claude-gui asks which one to use if more than one is installed.
 - **Notifications:** off by default. Desktop notifications when a session finishes or asks you something, while the dashboard is open in a browser tab.
 - **Keep a copy of every session:** on by default. See [Archive](#archive).
 - **Keep copies for:** how many days after a session's last activity to keep its copy. Empty keeps them forever.
@@ -140,7 +141,7 @@ Costs are what a session's tokens would cost at Anthropic's API list prices, inc
 - **"Port 4321 is in use."** Another copy is already running. Open `http://127.0.0.1:4321`, or start this one with `--port 4400`.
 - **The page is blank after an update.** The server still has the old version loaded. Stop it with <kbd>Ctrl</kbd> <kbd>C</kbd> and start it again.
 - **A project is missing.** Check which folder the dashboard reads in Settings. Sessions in temporary folders are hidden on purpose.
-- **Resume or Open in editor does nothing on Linux.** Resume uses `x-terminal-emulator`, and editors are opened with their command-line launcher (`code`, `cursor`, …), which must be on your `PATH`.
+- **Resume or Open in editor does nothing on Linux.** Resume uses `x-terminal-emulator` unless you pick another terminal in Settings, and editors are opened with their command-line launcher (`code`, `cursor`, …), which must be on your `PATH`.
 
 ## Privacy
 

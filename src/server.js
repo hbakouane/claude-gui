@@ -6,7 +6,7 @@ import { isValidKeepDays, MAX_KEEP_DAYS, restoreSession, SYNC_INTERVAL_MS, syncA
 import { DEFAULT_PORT, expandHome, isValidPort, MIN_PORT, readConfig, resolveClaudeDir, writeConfig } from './config.js';
 import { DEFAULT_EDITOR, EDITORS, editorCommand, openEditor } from './editor.js';
 import { createNotifier } from './notify.js';
-import { launch as spawnTerminal, terminalCommand } from './resume.js';
+import { defaultTerminal, isTerminal, launch as spawnTerminal, listTerminals, terminalCommand } from './resume.js';
 import { activeSessions, findSession, listProjects, listRecent, listSessions, parseSession, readConversation, searchSessions, sessionPath } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
@@ -17,14 +17,14 @@ const MAX_RECENT_HOURS = 168;
 const MAX_BODY_BYTES = 10_000;
 const MAX_QUERY_LENGTH = 200;
 const MAX_PATH_LENGTH = 1000;
-const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port', 'notifications', 'archive', 'archiveDays'];
+const SETTING_KEYS = ['claudeDir', 'editor', 'terminal', 'openBrowser', 'port', 'notifications', 'archive', 'archiveDays'];
 const BOOLEAN_SETTINGS = ['openBrowser', 'notifications', 'archive'];
 const SEARCH_WHO = new Set(['you', 'claude']);
 const HEARTBEAT_MS = 25_000;
 export const RESUME_HEADER = 'claude-gui';
 
-export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal, openFolder = openEditor, archiveDir = null, archive = false, archiveDays = null, notifications = false, watchIntervalMs = 3000, syncIntervalMs = SYNC_INTERVAL_MS }) {
-  const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR, archiveDir, archiving: Boolean(archive && archiveDir), archiveDays: isValidKeepDays(archiveDays) ? archiveDays : null, notifications: Boolean(notifications) };
+export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = null, platform = process.platform, launch = spawnTerminal, openFolder = openEditor, archiveDir = null, archive = false, archiveDays = null, notifications = false, watchIntervalMs = 3000, syncIntervalMs = SYNC_INTERVAL_MS }) {
+  const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR, terminal: isTerminal(platform, terminal) ? terminal : null, platform, archiveDir, archiving: Boolean(archive && archiveDir), archiveDays: isValidKeepDays(archiveDays) ? archiveDays : null, notifications: Boolean(notifications) };
   const archiver = createArchiver(settings, syncIntervalMs);
   const notifier = createNotifier({ scan: () => activeSessions(settings.root), intervalMs: watchIntervalMs });
 
@@ -60,13 +60,13 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
         return streamEvents(req, res, notifier);
       }
       if (pathname === '/api/settings') {
-        return await updateSettings(req, res, { settings, configFile, env, archiver });
+        return await updateSettings(req, res, { settings, configFile, env, archiver, platform });
       }
       if (pathname === '/api/open-editor') {
         return await openInEditor(req, res, { root, archive: archived.archive, editor: settings.editor, platform, open: openFolder });
       }
       if (pathname === '/api/resume') {
-        return await resume(req, res, { root, archive: archived.archive, terminal, platform, launch });
+        return await resume(req, res, { root, archive: archived.archive, terminal: settings.terminal, platform, launch });
       }
       const messagesMatch = MESSAGES_ROUTE.exec(pathname);
       if (messagesMatch) {
@@ -183,7 +183,7 @@ async function resume(req, res, { root, archive, terminal, platform, launch }) {
   return send(res, 200, { opened: true, restored: Boolean(restored) });
 }
 
-async function updateSettings(req, res, { settings, configFile, env, archiver }) {
+async function updateSettings(req, res, { settings, configFile, env, archiver, platform }) {
   if (req.method === 'GET') {
     return send(res, 200, await describe(settings, configFile, req));
   }
@@ -232,6 +232,15 @@ async function updateSettings(req, res, { settings, configFile, env, archiver })
     }
     config.editor = body.editor;
   }
+  if ('terminal' in body) {
+    if (body.terminal === null) {
+      delete config.terminal;
+    } else if (!isTerminal(platform, body.terminal)) {
+      return send(res, 400, { error: `Pick one of these terminals: ${listTerminals({ platform }).map((t) => t.id).join(', ')}` });
+    } else {
+      config.terminal = body.terminal;
+    }
+  }
   for (const key of BOOLEAN_SETTINGS.filter((k) => k in body)) {
     if (typeof body[key] !== 'boolean') {
       return send(res, 400, { error: `${key} must be true or false` });
@@ -265,6 +274,9 @@ async function updateSettings(req, res, { settings, configFile, env, archiver })
   }
   settings.editor = config.editor ?? settings.editor;
   settings.notifications = config.notifications === true;
+  if ('terminal' in body) {
+    settings.terminal = config.terminal ?? null;
+  }
   settings.archiving = Boolean(settings.archiveDir) && config.archive !== false;
   settings.archiveDays = isValidKeepDays(config.archiveDays) ? config.archiveDays : null;
   if (settings.archiving) {
@@ -291,6 +303,9 @@ async function describe(settings, configFile, req) {
     configFile,
     editor: settings.editor,
     editors: Object.entries(EDITORS).map(([id, { label }]) => ({ id, label })),
+    terminal: settings.terminal,
+    terminals: listTerminals({ platform: settings.platform }),
+    defaultTerminal: defaultTerminal(settings.platform),
     openBrowser: config.openBrowser !== false,
     notifications: settings.notifications,
     archive: settings.archiving,

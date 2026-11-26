@@ -294,6 +294,10 @@
   .seg button + button { border-left: 1px solid var(--border); }
   .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-strong); }
   .field-check + .field-help, .field-sub { margin-left: 25px; }
+  .settings.picker { width: min(420px, calc(100vw - 32px)); }
+  .picker-list { display: grid; gap: 8px; margin-top: 4px; }
+  .picker-option { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: 600 14px var(--sans); text-align: left; cursor: pointer; }
+  .picker-option:hover, .picker-option:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .field-input:disabled { opacity: .55; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
@@ -494,6 +498,10 @@
     <p class="field-help">Used by the “Open in editor” buttons on session pages.</p>
     <select class="field-input" id="editor-select"></select>
     <div class="field-sep"></div>
+    <label class="field-label" for="terminal-select">Terminal</label>
+    <p class="field-help" id="terminal-help">Where “Resume” opens a session.</p>
+    <select class="field-input" id="terminal-select"></select>
+    <div class="field-sep"></div>
     <label class="field-label" for="port-input">Port</label>
     <p class="field-help" id="port-help"></p>
     <input class="field-input" id="port-input" type="number" min="1024" max="65535" step="1" inputmode="numeric">
@@ -513,6 +521,13 @@
       <button class="btn" type="button" id="settings-cancel">Cancel</button>
       <button class="btn btn-primary" type="submit" id="settings-save">Save</button>
     </div>
+  </form>
+</dialog>
+<dialog class="settings picker" id="terminal-picker" aria-labelledby="picker-title">
+  <form method="dialog">
+    <div class="settings-head"><h2 id="picker-title">Open sessions in which terminal?</h2><button class="icon-btn" type="button" data-picker-close aria-label="Close" data-icon="x"></button></div>
+    <p class="field-help">These are installed on your computer. You can change this later in Settings.</p>
+    <div class="picker-list" id="picker-list"></div>
   </form>
 </dialog>
 <noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
@@ -1207,7 +1222,7 @@
     return `
       <div class="section${pinClass('resume')}" data-section="resume">
         <div class="section-title"><span>Resume</span>${pinButton('resume')}</div>
-        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} ${s.archived ? 'Restore and resume' : 'Resume in terminal'}</button>
+        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} ${s.archived ? 'Restore and resume' : `Resume in ${esc(terminalLabel())}`}</button>
         <button class="btn-resume secondary" type="button" data-action="open-editor">${icon('code', 14)} Open in ${esc(editorLabel())}</button>
         <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
         <div class="hint">${s.archived ? 'Claude Code deleted this session from its folder. claude-gui kept a copy: resuming puts it back, then opens it in a new terminal window.' : 'Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.'}</div>
@@ -1416,11 +1431,19 @@
   archiveInput.addEventListener('change', () => { archiveDaysInput.disabled = !archiveInput.checked; });
   const notificationsBlocked = () => !('Notification' in window) || Notification.permission === 'denied';
   const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
+  const terminalSelect = $('terminal-select');
+  const currentTerminal = () => state.settings?.terminal ?? state.settings?.defaultTerminal;
+  // Named once you've picked one; until then Resume may still ask which to use.
+  const terminalLabel = () => (state.settings?.terminal && state.settings.terminals?.find((t) => t.id === state.settings.terminal)?.label) || 'terminal';
 
   function fillSettings(settings) {
     state.settings = settings;
     claudeDirInput.value = tilde(settings.claudeDir ?? '');
     editorSelect.innerHTML = settings.editors.map((editor) => `<option value="${esc(editor.id)}"${editor.id === settings.editor ? ' selected' : ''}>${esc(editor.label)}</option>`).join('');
+    const chosen = settings.terminal ?? settings.defaultTerminal;
+    // An older server (still running after an update) sends no terminal list.
+    terminalSelect.closest('form').querySelectorAll('[for="terminal-select"], #terminal-help, #terminal-select').forEach((el) => { el.hidden = !settings.terminals; });
+    terminalSelect.innerHTML = (settings.terminals ?? []).map((t) => `<option value="${esc(t.id)}"${t.id === chosen ? ' selected' : ''}${t.installed || t.id === chosen ? '' : ' disabled'}>${esc(t.label)}${t.installed ? '' : ' (not installed)'}</option>`).join('');
     portInput.value = settings.port ?? '';
     portInput.placeholder = String(settings.defaultPort);
     openBrowserInput.checked = settings.openBrowser;
@@ -1460,6 +1483,7 @@
     const changes = {};
     if (claudeDirInput.value.trim() !== tilde(state.settings?.claudeDir ?? '')) changes.claudeDir = claudeDirInput.value;
     if (editorSelect.value !== state.settings?.editor) changes.editor = editorSelect.value;
+    if (state.settings?.terminals && terminalSelect.value !== currentTerminal()) changes.terminal = terminalSelect.value;
     if (openBrowserInput.checked !== state.settings?.openBrowser) changes.openBrowser = openBrowserInput.checked;
     if (notificationsInput.checked !== state.settings?.notifications) changes.notifications = notificationsInput.checked;
     if (!archiveInput.disabled && archiveInput.checked !== state.settings?.archive) changes.archive = archiveInput.checked;
@@ -1561,6 +1585,44 @@
       location.hash = `#/p/${encodeURIComponent(event.projectId)}/s/${encodeURIComponent(event.sessionId)}`;
       notification.close();
     };
+  }
+
+  /* ---------- Terminal choice ---------- */
+
+  // The first Resume asks which terminal to use when more than one is installed, and remembers the answer.
+  function chooseTerminal() {
+    const installed = state.settings?.terminals?.filter((t) => t.installed) ?? [];
+    if (!state.settings || state.settings.terminal || installed.length < 2) return Promise.resolve(true);
+    const picker = $('terminal-picker');
+    $('picker-list').innerHTML = installed.map((t) => `<button class="picker-option" type="button" data-terminal="${esc(t.id)}">${icon('terminal', 16)}${esc(t.label)}</button>`).join('');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = async (id) => {
+        if (settled) return;
+        settled = true;
+        picker.close();
+        if (!id) return resolve(false);
+        try {
+          const response = await fetch('/api/settings', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' }, body: JSON.stringify({ terminal: id }) });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || response.statusText);
+          state.settings = body;
+          if (state.sessionId) renderSessionPreservingView();
+          resolve(true);
+        } catch (error) {
+          showToast(`Could not save the terminal: ${error.message}`, true);
+          resolve(false);
+        }
+      };
+      picker.onclick = (event) => {
+        const option = event.target.closest('[data-terminal]');
+        if (option) finish(option.dataset.terminal);
+        else if (event.target.closest('[data-picker-close]') || event.target === picker) finish(null);
+      };
+      picker.oncancel = () => finish(null);
+      picker.showModal();
+      picker.querySelector('.picker-option')?.focus();
+    });
   }
 
   async function openInEditor(path, button) {
@@ -1675,6 +1737,7 @@
       && !window.confirm('Claude may still be running in this session. Opening it again starts a second copy of the same conversation. Continue?')) {
       return;
     }
+    if (!(await chooseTerminal())) return;
     button.disabled = true;
     try {
       const response = await fetch('/api/resume', {
@@ -1684,7 +1747,7 @@
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || response.statusText);
-      showToast(body.restored ? 'Restored the session and opened it in a new terminal window' : 'Opened in a new terminal window');
+      showToast(body.restored ? `Restored the session and opened it in a new ${terminalLabel()} window` : `Opened in a new ${terminalLabel()} window`);
       if (body.restored) refresh();
     } catch (error) {
       showToast(`Could not open a terminal: ${error.message}`, true);
@@ -1816,7 +1879,7 @@
   }
 
   document.addEventListener('keydown', (event) => {
-    if (settingsDialog.open) return;
+    if (settingsDialog.open || $('terminal-picker').open) return;
     const typing = event.target.matches('input, textarea');
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
