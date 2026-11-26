@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-gui · A local dashboard for your Claude Code sessions</title>
+<meta name="description" content="Search every Claude Code conversation, see what each session changed and cost, and resume any session in one click. Runs 100% on your machine.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d97757'/%3E%3Cg fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' transform='translate(4 4)'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #ffffff; --subtle: #f4f2ee; --text: #1c1917; --text-2: #57534e; --text-3: #8a847d;
+    --border: #e7e4de; --accent: #d97757; --accent-strong: #c2603f; --accent-soft: rgba(217, 119, 87, .12);
+    --ink: #0f0e0d; --ink-2: #1a1816; --ink-text: #f5f3ef; --ink-muted: #a8a29e; --ink-border: rgba(255, 255, 255, .09);
+    --green: #16a34a; --violet: #7c3aed; --blue: #2563eb;
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --shadow: 0 1px 2px rgba(28, 25, 23, .04), 0 24px 60px -20px rgba(28, 25, 23, .25);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  img { max-width: 100%; height: auto; display: block; }
+  code, pre, kbd { font-family: var(--mono); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  .mark { display: inline-grid; place-items: center; border-radius: 22%; color: #fff; background: linear-gradient(140deg, #ef9f80 0%, #d97757 45%, #b9552f 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 10px 30px -8px rgba(217, 119, 87, .65); }
+
+  /* Nav */
+  .nav { position: sticky; top: 0; z-index: 50; background: rgba(15, 14, 13, .94); backdrop-filter: saturate(1.6) blur(14px); -webkit-backdrop-filter: saturate(1.6) blur(14px); border-bottom: 1px solid var(--ink-border); }
+  .nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink-text); text-decoration: none; font-weight: 700; letter-spacing: -.01em; font-size: 17px; }
+  .brand .mark { width: 30px; height: 30px; }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; }
+  .nav-links a { color: var(--ink-muted); text-decoration: none; font-size: 14.5px; font-weight: 500; transition: color .15s; }
+  .nav-links a:hover { color: var(--ink-text); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform .15s, background .15s, border-color .15s, box-shadow .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 24px -8px rgba(217, 119, 87, .7); }
+  .btn-primary:hover { background: #e2835f; }
+  .btn-ghost { color: var(--ink-text); border-color: var(--ink-border); background: rgba(255, 255, 255, .04); }
+  .btn-ghost:hover { border-color: rgba(255, 255, 255, .25); }
+  .btn-sm { height: 36px; padding: 0 14px; font-size: 14px; }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; background: var(--ink); color: var(--ink-text); padding: 88px 0 0; }
+  .hero::before { content: ''; position: absolute; inset: -30% -10% auto; height: 900px; background: radial-gradient(ellipse 50% 45% at 50% 30%, rgba(217, 119, 87, .32), transparent 70%), radial-gradient(ellipse 40% 35% at 85% 15%, rgba(124, 58, 237, .16), transparent 70%); pointer-events: none; }
+  .hero::after { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 30%, transparent 75%); pointer-events: none; }
+  .hero .wrap { position: relative; z-index: 1; text-align: center; }
+  .hero-mark { display: grid; width: 84px; height: 84px; margin: 0 auto 28px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ink-border); background: rgba(255, 255, 255, .04); color: var(--ink-muted); font-size: 13.5px; font-weight: 500; margin-bottom: 22px; }
+  .eyebrow b { color: var(--ink-text); font-weight: 600; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, .2); }
+  .hero h1 { margin: 0 auto; max-width: 900px; font-size: clamp(40px, 6.4vw, 72px); line-height: 1.04; letter-spacing: -.035em; font-weight: 750; }
+  .hero h1 .grad { background: linear-gradient(100deg, #f2b39a 0%, #e5896a 45%, #d97757 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { margin: 24px auto 0; max-width: 680px; font-size: clamp(17px, 2vw, 20px); color: var(--ink-muted); line-height: 1.6; }
+  .cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+  .install { display: inline-flex; align-items: center; gap: 14px; height: 44px; padding: 0 8px 0 16px; border-radius: 10px; background: rgba(255, 255, 255, .06); border: 1px solid var(--ink-border); font: 15px var(--mono); color: var(--ink-text); }
+  .install .prompt { color: var(--accent); user-select: none; }
+  .copy { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; transition: background .15s, color .15s; }
+  .copy:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+  .badges { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 22px; margin-top: 26px; color: var(--ink-muted); font-size: 14px; }
+  .badges span { display: inline-flex; align-items: center; gap: 7px; }
+  .badges svg { color: #4ade80; }
+  .stage { position: relative; margin: 64px auto 0; max-width: 1120px; }
+  .frame { border-radius: 14px 14px 0 0; overflow: hidden; border: 1px solid rgba(255, 255, 255, .12); border-bottom: 0; background: #161618; box-shadow: 0 -20px 80px -20px rgba(217, 119, 87, .35), 0 40px 100px rgba(0, 0, 0, .6); }
+  .frame-bar { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; background: #1c1c1f; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+  .frame-bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a3a3f; }
+  .frame-bar i:nth-child(1) { background: #ff5f57; } .frame-bar i:nth-child(2) { background: #febc2e; } .frame-bar i:nth-child(3) { background: #28c840; }
+  .frame-bar .url { margin: 0 auto; padding: 3px 14px; border-radius: 6px; background: rgba(255, 255, 255, .06); color: var(--ink-muted); font: 12px var(--mono); transform: translateX(-24px); }
+  .callout { position: absolute; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-radius: 12px; background: rgba(28, 25, 23, .82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); font-size: 14px; color: var(--ink-text); white-space: nowrap; animation: float 6s ease-in-out infinite; }
+  .callout small { display: block; color: var(--ink-muted); font-size: 12px; }
+  .callout .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .c1 { left: -46px; top: 22%; } .c2 { right: -40px; top: 12%; animation-delay: -2s; } .c3 { right: -28px; bottom: 16%; animation-delay: -4s; } .c4 { left: -30px; bottom: 10%; animation-delay: -1s; }
+  @keyframes float { 50% { transform: translateY(-8px); } }
+
+  /* Sections */
+  section { padding: 104px 0; }
+  .section-head { max-width: 720px; margin: 0 auto 56px; text-align: center; }
+  .kicker { color: var(--accent-strong); font-weight: 650; font-size: 13.5px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+  h2 { margin: 0; font-size: clamp(30px, 4vw, 44px); line-height: 1.12; letter-spacing: -.03em; font-weight: 740; }
+  .section-head p { margin: 16px 0 0; color: var(--text-2); font-size: 18px; }
+
+  .problems { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .problem { padding: 24px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); }
+  .problem .num { font: 600 13px var(--mono); color: var(--accent-strong); }
+  .problem h3 { margin: 10px 0 8px; font-size: 17px; letter-spacing: -.01em; line-height: 1.35; }
+  .problem p { margin: 0; color: var(--text-2); font-size: 15px; }
+  .answer { margin: 28px auto 0; max-width: 760px; text-align: center; font-size: 18px; color: var(--text-2); }
+  .answer b { color: var(--text); }
+
+  .features { background: linear-gradient(180deg, var(--bg), var(--subtle) 12%, var(--subtle) 88%, var(--bg)); }
+  .feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; align-items: center; padding: 48px 0; }
+  .feature.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .feature.flip .feature-text { order: 2; }
+  .feature-tag { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); font-size: 13px; font-weight: 650; }
+  .feature h3 { margin: 16px 0 12px; font-size: clamp(24px, 3vw, 32px); line-height: 1.18; letter-spacing: -.025em; }
+  .feature p { margin: 0 0 18px; color: var(--text-2); font-size: 17px; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .checks li { display: flex; gap: 11px; color: var(--text-2); font-size: 15.5px; line-height: 1.5; }
+  .checks li::before { content: ''; flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 6px; background: var(--accent-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c2603f' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 12px no-repeat; }
+  .shot { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); cursor: zoom-in; transition: transform .25s, box-shadow .25s; }
+  .shot:hover { transform: translateY(-3px); box-shadow: 0 1px 2px rgba(28, 25, 23, .04), 0 32px 70px -20px rgba(28, 25, 23, .35); }
+  .shot .frame-bar { background: var(--subtle); border-bottom: 1px solid var(--border); height: 30px; }
+  .shot .frame-bar i { width: 9px; height: 9px; }
+  .shot img { width: 100%; height: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .card { padding: 22px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); transition: border-color .2s, transform .2s; }
+  .card:hover { border-color: #d6d2ca; transform: translateY(-2px); }
+  .card .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-strong); margin-bottom: 14px; }
+  .card h4 { margin: 0 0 6px; font-size: 16px; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.55; }
+
+  .privacy { background: var(--ink); color: var(--ink-text); border-radius: 24px; padding: 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; position: relative; overflow: hidden; }
+  .privacy::before { content: ''; position: absolute; width: 520px; height: 520px; right: -160px; top: -200px; background: radial-gradient(circle, rgba(217, 119, 87, .28), transparent 65%); }
+  .privacy h2 { color: var(--ink-text); }
+  .privacy p { color: var(--ink-muted); font-size: 17px; margin: 16px 0 0; }
+  .privacy .checks li { color: #d6d3cf; }
+  .privacy .checks li::before { background-color: rgba(217, 119, 87, .18); }
+
+  /* Docs */
+  .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
+  .toc { position: sticky; top: 92px; display: grid; gap: 2px; font-size: 14.5px; }
+  .toc b { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); margin: 14px 0 6px; }
+  .toc b:first-child { margin-top: 0; }
+  .toc a { color: var(--text-2); text-decoration: none; padding: 5px 10px; border-radius: 7px; border-left: 2px solid transparent; }
+  .toc a:hover { background: var(--subtle); color: var(--text); }
+  .doc h3 { margin: 48px 0 12px; font-size: 22px; letter-spacing: -.02em; scroll-margin-top: 90px; }
+  .doc h3:first-child { margin-top: 0; }
+  .doc p, .doc li { color: var(--text-2); font-size: 16px; }
+  .doc ol, .doc ul { padding-left: 22px; }
+  .doc li { margin: 6px 0; }
+  .doc code:not(pre code) { padding: 2px 6px; border-radius: 6px; background: var(--subtle); border: 1px solid var(--border); font-size: 14px; color: var(--text); }
+  .code { position: relative; margin: 14px 0 18px; border-radius: 12px; background: var(--ink-2); border: 1px solid #2a2724; overflow: hidden; }
+  .code-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 8px 16px; border-bottom: 1px solid rgba(255, 255, 255, .06); color: var(--ink-muted); font: 12px var(--mono); }
+  .code pre { margin: 0; padding: 16px 18px; overflow-x: auto; color: #ece8e3; font-size: 14px; line-height: 1.7; }
+  .code .c { color: #8a847d; }
+  .code .p { color: var(--accent); user-select: none; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 18px; font-size: 15px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-2); }
+  th { background: var(--subtle); color: var(--text); font-weight: 600; font-size: 14px; }
+  tr:last-child td { border-bottom: 0; }
+  kbd { display: inline-block; min-width: 24px; padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--panel); font-size: 13px; text-align: center; color: var(--text); }
+  .note { display: flex; gap: 12px; padding: 14px 16px; margin: 16px 0; border-radius: 12px; background: var(--accent-soft); color: var(--text-2); font-size: 15px; }
+  .note b { color: var(--text); }
+  .tree { font: 14px/1.8 var(--mono); }
+  .tree .d { color: var(--ink-muted); }
+
+  .faq { max-width: 800px; margin: 0 auto; display: grid; gap: 12px; }
+  .faq details { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 4px 20px; }
+  .faq summary { cursor: pointer; padding: 14px 0; font-weight: 600; font-size: 16.5px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: '+'; color: var(--text-3); font-weight: 400; font-size: 22px; line-height: 1; transition: transform .2s; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq details p { margin: 0 0 16px; color: var(--text-2); }
+
+  .final { text-align: center; }
+  .final .mark { display: grid; width: 64px; height: 64px; margin: 0 auto 24px; }
+  .final .install { background: var(--ink); border-color: var(--ink); margin-top: 28px; }
+
+  footer { border-top: 1px solid var(--border); padding: 36px 0 48px; color: var(--text-3); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; }
+  footer a { color: var(--text-2); }
+
+  .lightbox { position: fixed; inset: 0; z-index: 100; display: none; place-items: center; padding: 32px; background: rgba(12, 10, 9, .86); backdrop-filter: blur(6px); cursor: zoom-out; }
+  .lightbox.open { display: grid; }
+  .lightbox img { max-height: 92vh; width: auto; border-radius: 12px; box-shadow: 0 40px 100px rgba(0, 0, 0, .6); }
+  .toast { position: fixed; left: 50%; bottom: 28px; z-index: 110; transform: translate(-50%, 12px); opacity: 0; padding: 10px 16px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 550; transition: .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 1080px) {
+    .problems, .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .callout { display: none; }
+    .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .feature.flip .feature-text { order: 0; }
+    .privacy { grid-template-columns: minmax(0, 1fr); padding: 44px 32px; gap: 28px; }
+    .docs { grid-template-columns: minmax(0, 1fr); }
+    .toc { display: none; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px; }
+    .nav-links { display: none; }
+    .nav .btn { margin-left: auto; }
+    .hero { padding-top: 56px; }
+    section { padding: 72px 0; }
+    .problems, .grid { grid-template-columns: minmax(0, 1fr); }
+    .install { font-size: 14px; }
+    .privacy { border-radius: 18px; padding: 36px 22px; }
+    th, td { padding: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol>
+  <symbol id="i-pr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-artifact" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+</svg>
+
+<nav class="nav" aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="mark"><svg width="17" height="17"><use href="#i-history"/></svg></span>claude-gui</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#install">Install</a>
+      <a href="#contribute">Contribute</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="https://github.com/hbakouane/claude-gui"><svg width="16" height="16"><use href="#i-github"/></svg>GitHub</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="mark hero-mark"><svg width="44" height="44"><use href="#i-history"/></svg></div>
+    <div class="eyebrow"><span class="dot"></span><b>Open source</b> · Runs 100% on your machine</div>
+    <h1>Every Claude Code session,<br><span class="grad">one click away.</span></h1>
+    <p class="lede">claude-gui is a local dashboard for your Claude Code history. Search every conversation, see what each session changed and cost, and resume any of them in one click, even after your laptop crashes with five sessions open.</p>
+    <div class="cta">
+      <div class="install"><span><span class="prompt">$ </span>npx claude-gui</span><button class="copy" type="button" data-copy="npx claude-gui" aria-label="Copy install command"><svg width="16" height="16"><use href="#i-copy"/></svg></button></div>
+      <a class="btn btn-primary" href="#install">Get started</a>
+      <a class="btn btn-ghost" href="#features">See features</a>
+    </div>
+    <div class="badges">
+      <span><svg width="15" height="15"><use href="#i-check"/></svg>Zero dependencies</span>
+      <span><svg width="15" height="15"><use href="#i-check"/></svg>Read-only, never edits your sessions</span>
+      <span><svg width="15" height="15"><use href="#i-check"/></svg>macOS, Linux and Windows</span>
+      <span><svg width="15" height="15"><use href="#i-check"/></svg>MIT licensed</span>
+    </div>
+    <div class="stage">
+      <div class="callout c1"><span class="ico" style="background:rgba(74,222,128,.15);color:#4ade80"><svg width="16" height="16"><use href="#i-refresh"/></svg></span><span>Claude is working<small>Live, updates every 5 seconds</small></span></div>
+      <div class="callout c2"><span class="ico" style="background:rgba(217,119,87,.18);color:#f0a184"><svg width="16" height="16"><use href="#i-terminal"/></svg></span><span>Resume in terminal<small>Back where you stopped, in one click</small></span></div>
+      <div class="callout c3"><span class="ico" style="background:rgba(167,139,250,.16);color:#c4b5fd"><svg width="16" height="16"><use href="#i-dollar"/></svg></span><span>$1.06 for this session<small>11.5K output tokens · 2.4M cached</small></span></div>
+      <div class="callout c4"><span class="ico" style="background:rgba(96,165,250,.16);color:#93c5fd"><svg width="16" height="16"><use href="#i-search"/></svg></span><span>Search every conversation<small>Across all projects at once</small></span></div>
+      <div class="frame">
+        <div class="frame-bar"><i></i><i></i><i></i><span class="url">127.0.0.1:4321</span></div>
+        <img src="screenshots/hero-dark.png" alt="claude-gui in dark mode, showing a session's conversation with its resume command, details, pull request and artifact" width="2880" height="1800">
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="why">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">Why claude-gui</div>
+        <h2>Claude Code remembers everything. Finding it is the hard part.</h2>
+        <p>Every session is saved on your disk as a raw transcript file. Useful, until you actually need to find one.</p>
+      </div>
+      <div class="problems">
+        <div class="problem"><div class="num">01</div><h3>Your computer crashed mid-work</h3><p>Five sessions were open in three projects. Which one was fixing the checkout bug, and what was its ID?</p></div>
+        <div class="problem"><div class="num">02</div><h3><code>--resume</code> sees one folder</h3><p>The built-in picker lists titles for the folder you're in. It can't search, and it shows nothing else about a session.</p></div>
+        <div class="problem"><div class="num">03</div><h3>"Where did Claude explain that?"</h3><p>The answer is in a transcript from last Tuesday, somewhere among hundreds of megabytes of JSON.</p></div>
+        <div class="problem"><div class="num">04</div><h3>No idea what a session did</h3><p>Which files did it change? Which PR did it open? Did it make a worktree? How much did it cost?</p></div>
+      </div>
+      <p class="answer"><b>claude-gui answers all four.</b> It reads the transcripts already on your disk and turns them into a dashboard you can search, browse and resume from.</p>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">Features</div>
+        <h2>Everything a session did, on one page</h2>
+        <p>Nothing to configure. It finds every project you've used Claude Code in on its own.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-history"/></svg>Overview</span>
+          <h3>See what you were working on, at a glance</h3>
+          <p>The home screen lists every project you've used Claude Code in, with the sessions active in the last 24 hours right below, each with a one-click Resume.</p>
+          <ul class="checks">
+            <li>Recently active sessions from every project, newest first</li>
+            <li>The branch and pull request for each session, right on its row</li>
+            <li>A live "Working…" status while Claude is still replying</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/overview.png" alt="Overview with recently active sessions and all projects" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature flip">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-search"/></svg>Find where you stopped</span>
+          <h3>Hover a session to see your last prompt and Claude's last reply</h3>
+          <p>Each project lists its sessions by day. Hover any one and a card shows exactly where it stopped, so you can tell sessions apart without opening them.</p>
+          <ul class="checks">
+            <li>Stat tiles that filter by active now, with PRs, in worktrees or with artifacts</li>
+            <li>The estimated cost of each session and of the whole project</li>
+            <li>Copy a session ID or resume it straight from the list</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/hover-card.png" alt="Project session list with a hover card showing the last prompt and reply" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-book"/></svg>Full conversation</span>
+          <h3>Read the whole conversation, the way you had it</h3>
+          <p>Open a session to read everything you and Claude said. Replies are rendered as markdown, with tables and code blocks. It opens at the latest message.</p>
+          <ul class="checks">
+            <li>Tool calls stay hidden until you want them, then expand to show their input and output</li>
+            <li>Slash commands, background tasks and context summaries are shown in place</li>
+            <li>A copy-ready <code>claude --resume</code> command next to the chat</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/tool-calls.png" alt="Session page with an expanded tool call and a markdown reply with a table" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature flip">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-dollar"/></svg>Changes and cost</span>
+          <h3>See which files changed, and what the session cost</h3>
+          <p>Every edit Claude made is listed by file, with a diff of what it replaced. A usage box shows tokens and an estimated cost at Anthropic's API list prices.</p>
+          <ul class="checks">
+            <li>Per-file diffs, hidden behind an Expand button until you need them</li>
+            <li>Output tokens, cache reads and writes, and the models used</li>
+            <li>Pin the boxes you care about to the top of every session page</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/files-and-pins.png" alt="Session sidebar with pinned usage and files changed boxes and a red and green diff" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-refresh"/></svg>Live</span>
+          <h3>Watch a running session as it happens</h3>
+          <p>While Claude is still working, the session page says so and shows what it's doing right now, like which command it's running. It refreshes every few seconds.</p>
+          <ul class="checks">
+            <li>"Claude is working" in the header and a typing indicator in the chat</li>
+            <li>Keeps your place: it only follows new messages if you're at the bottom</li>
+            <li>Crashed sessions don't stay "working" forever</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/running.png" alt="A running session showing Claude is working and the command it's running" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature flip">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-search"/></svg>Search</span>
+          <h3>Search every conversation you've ever had</h3>
+          <p>Type in the search box to find any word you or Claude wrote, across every project. Results jump straight to the session.</p>
+          <ul class="checks">
+            <li>Matches highlighted in context, with who said it and when</li>
+            <li>Searches prompts and replies, not just titles</li>
+            <li><kbd>⌘</kbd> <kbd>K</kbd> to search from anywhere</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/search.png" alt="Search results with highlighted matches" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <span class="feature-tag"><svg width="14" height="14"><use href="#i-terminal"/></svg>Back to work</span>
+          <h3>Jump back in, in your terminal or your editor</h3>
+          <p>One click resumes the conversation in a new terminal window, already in the right folder. Another opens the session's folder, or any of its worktrees, in your editor, so you can look at the code Claude changed.</p>
+          <ul class="checks">
+            <li>Terminal and iTerm on macOS, plus the default terminal on Windows and Linux</li>
+            <li>VS Code, Cursor, Zed, Windsurf, Sublime Text, PhpStorm, WebStorm and IntelliJ IDEA</li>
+            <li>Only opens the session's own folders, never a path a web page asks for</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0"><div class="frame-bar"><i></i><i></i><i></i></div><img src="screenshots/session.png" alt="Session page with Resume in terminal and Open in VS Code buttons above the resume command" loading="lazy" width="2880" height="1800"></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="more">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">And more</div>
+        <h2>The details that matter after the fact</h2>
+      </div>
+      <div class="grid">
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-moon"/></svg></div><h4>Settings that stick</h4><p>Pick your Claude folder, editor, port and theme once. They're remembered across restarts.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-pr"/></svg></div><h4>Pull requests</h4><p>Every PR a session opened, linked straight to GitHub.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-layers"/></svg></div><h4>Git worktrees</h4><p>Worktrees a session created or entered, and whether they're still on disk.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-artifact"/></svg></div><h4>Artifacts</h4><p>Pages Claude published to claude.ai, marked as created, updated or opened.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-book"/></svg></div><h4>Skills</h4><p>Which skills ran, and whether you typed them or Claude loaded them.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-plug"/></svg></div><h4>MCP servers</h4><p>Every MCP server a session called, like Linear, Sentry or GitHub.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-pin"/></svg></div><h4>Pinned boxes</h4><p>Pin the details you check most so they're at the top of every session.</p></div>
+        <div class="card"><div class="ic"><svg width="18" height="18"><use href="#i-keyboard"/></svg></div><h4>Keyboard shortcuts</h4><p>Search, move, open and copy without touching the mouse.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy" style="padding-top:0">
+    <div class="wrap">
+      <div class="privacy">
+        <div style="position:relative">
+          <div class="kicker" style="color:#f0a184">Privacy</div>
+          <h2>Your sessions never leave your machine</h2>
+          <p>Your transcripts hold everything you and Claude wrote: code, secrets in logs, customer data. claude-gui treats them that way.</p>
+        </div>
+        <ul class="checks" style="position:relative">
+          <li>Only reads the files Claude Code already saved. It never changes them.</li>
+          <li>Listens on 127.0.0.1 only, so other computers can't reach it</li>
+          <li>Rejects requests from other websites, even ones open in your browser</li>
+          <li>No accounts, no telemetry, no network calls. It sends nothing anywhere.</li>
+          <li>Zero dependencies, so there's no third-party code to audit</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" style="padding-top:24px">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">Manual</div>
+        <h2>Install, run and contribute</h2>
+        <p>Up and running in under a minute. All you need is Node.js.</p>
+      </div>
+      <div class="docs">
+        <nav class="toc" aria-label="Manual">
+          <b>Use it</b>
+          <a href="#quick-start">Quick start</a>
+          <a href="#global">Install globally</a>
+          <a href="#options">Options</a>
+          <a href="#claude-folder">Claude folder</a>
+          <a href="#shortcuts">Keyboard shortcuts</a>
+          <a href="#costs">About cost estimates</a>
+          <a href="#troubleshooting">Troubleshooting</a>
+          <b>Build it</b>
+          <a href="#contribute">Contributing</a>
+          <a href="#structure">Project structure</a>
+          <a href="#principles">Principles</a>
+          <a href="#pull-requests">Pull requests</a>
+        </nav>
+
+        <div class="doc">
+          <h3 id="quick-start">Quick start</h3>
+          <p>You need <b>Node.js 18.3 or newer</b> and at least one Claude Code session on this machine. Then run:</p>
+          <div class="code"><div class="code-head">Terminal<button class="copy" type="button" data-copy="npx claude-gui" aria-label="Copy"><svg width="15" height="15"><use href="#i-copy"/></svg></button></div><pre><span class="p">$ </span>npx claude-gui</pre></div>
+          <p>Your browser opens at <code>http://127.0.0.1:4321</code>. Pick a project, open a session, and click <b>Resume in terminal</b> to continue it, or <b>Open in editor</b> to look at its code. Choose your editor with the gear icon in the top bar. You can also copy the resume command and run it yourself:</p>
+          <div class="code"><div class="code-head">Terminal</div><pre><span class="p">$ </span>cd ~/code/acme-storefront &amp;&amp; claude --resume 6706d7ca-3fa9-4959-af52-b15b645d097f</pre></div>
+
+          <h3 id="global">Install globally</h3>
+          <p>To have the <code>claude-gui</code> command always available, for example right after a crash:</p>
+          <div class="code"><div class="code-head">Terminal<button class="copy" type="button" data-copy="npm install -g claude-gui" aria-label="Copy"><svg width="15" height="15"><use href="#i-copy"/></svg></button></div><pre><span class="p">$ </span>npm install -g claude-gui
+<span class="p">$ </span>claude-gui</pre></div>
+          <p>To update, run the install command again. To remove it, run <code>npm uninstall -g claude-gui</code>.</p>
+
+          <h3 id="options">Options</h3>
+          <table>
+            <thead><tr><th>Flag</th><th>Default</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>--port &lt;n&gt;</code></td><td><code>4321</code></td><td>The port to listen on</td></tr>
+              <tr><td><code>--no-open</code></td><td>off</td><td>Don't open the browser on start</td></tr>
+              <tr><td><code>--terminal &lt;app&gt;</code></td><td><code>terminal</code></td><td>On macOS, where Resume opens: <code>terminal</code> or <code>iterm</code></td></tr>
+              <tr><td><code>--claude-dir &lt;path&gt;</code></td><td><code>~/.claude</code></td><td>The folder Claude Code keeps its data in</td></tr>
+              <tr><td><code>-h</code>, <code>--help</code></td><td></td><td>Show usage</td></tr>
+            </tbody>
+          </table>
+          <h3 id="claude-folder">Using a different Claude folder</h3>
+          <p>claude-gui reads the <code>projects</code> folder inside your Claude folder, which is <code>~/.claude</code> unless you moved it. To read another one, click the gear icon in the top bar, enter the folder in <b>Settings</b> and save. The dashboard switches right away, and the choice is remembered in <code>~/.config/claude-gui/config.json</code>.</p>
+          <p>You can also set it when starting the dashboard. If more than one is set, the first one wins:</p>
+          <ol>
+            <li>the <code>--claude-dir</code> flag, for example <code>npx claude-gui --claude-dir ~/work/.claude</code></li>
+            <li>the folder saved in Settings</li>
+            <li>the <code>CLAUDE_CONFIG_DIR</code> environment variable, which Claude Code uses too</li>
+            <li><code>~/.claude</code></li>
+          </ol>
+          <p>Projects in temporary folders, such as <code>/tmp</code>, are hidden.</p>
+
+          <h3 id="shortcuts">Keyboard shortcuts</h3>
+          <table>
+            <thead><tr><th>Keys</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td><kbd>⌘</kbd> <kbd>K</kbd> or <kbd>/</kbd></td><td>Search</td></tr>
+              <tr><td><kbd>J</kbd> / <kbd>K</kbd> or <kbd>↓</kbd> / <kbd>↑</kbd></td><td>Move between projects or sessions</td></tr>
+              <tr><td><kbd>↵</kbd></td><td>Open the selected project or session</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Copy the selected session's ID</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Clear the search, or go back to the session list</td></tr>
+            </tbody>
+          </table>
+
+          <h3 id="costs">About cost estimates</h3>
+          <p>Costs are what a session's tokens would cost at Anthropic's API list prices, including cache reads and writes. If you use Claude Code on a subscription plan, you're billed differently, so treat the number as a measure of how heavy a session was. Subagent work isn't included yet. Models without a known price show token counts only.</p>
+
+          <h3 id="troubleshooting">Troubleshooting</h3>
+          <ul>
+            <li><b>"Port 4321 is in use."</b> Another copy is already running. Open <code>http://127.0.0.1:4321</code>, or start this one with <code>--port 4400</code>.</li>
+            <li><b>The page is blank after an update.</b> The server still has the old version loaded. Stop it with <kbd>Ctrl</kbd> <kbd>C</kbd> and start it again.</li>
+            <li><b>A project is missing.</b> Check that Claude Code saved sessions in <code>~/.claude/projects</code>, or set <code>CLAUDE_CONFIG_DIR</code>. Sessions in temporary folders are hidden on purpose.</li>
+            <li><b>Resume doesn't open a window on Linux.</b> It uses <code>x-terminal-emulator</code>. Copy the resume command and paste it into your terminal instead.</li>
+          </ul>
+
+          <h3 id="contribute">Contributing</h3>
+          <p>Contributions are welcome. There's nothing to install, since claude-gui has no dependencies:</p>
+          <div class="code"><div class="code-head">Terminal</div><pre><span class="p">$ </span>git clone https://github.com/hbakouane/claude-gui.git
+<span class="p">$ </span>cd claude-gui
+<span class="p">$ </span>npm test                        <span class="c"># run the test suite</span>
+<span class="p">$ </span>node bin/cli.js --port 4400     <span class="c"># run your local copy</span></pre></div>
+          <div class="note"><span>💡</span><span><b>Restart after changing server code.</b> The page in <code>public/index.html</code> is read on every request, so a reload is enough for it. Anything in <code>src/</code> needs a restart.</span></div>
+          <p>Need screenshots or a demo without showing your own sessions? Point the dashboard at a folder of fake transcripts:</p>
+          <div class="code"><div class="code-head">Terminal</div><pre><span class="p">$ </span>CLAUDE_CONFIG_DIR=/path/to/fake-claude node bin/cli.js --port 4400</pre></div>
+
+          <h3 id="structure">Project structure</h3>
+          <div class="code"><pre class="tree">bin/cli.js          <span class="d">Command line: flags, starts the server, opens the browser</span>
+src/server.js       <span class="d">Local HTTP server and JSON API</span>
+src/sessions.js     <span class="d">Reads session transcripts: titles, PRs, worktrees, files, search</span>
+src/pricing.js      <span class="d">Model prices and token cost estimates</span>
+src/resume.js       <span class="d">Opens a terminal window that resumes a session</span>
+public/index.html   <span class="d">The whole web app: one file, no build step</span>
+test/               <span class="d">Tests, using Node's built-in test runner</span></pre></div>
+
+          <h3 id="principles">Principles</h3>
+          <ul>
+            <li><b>Zero dependencies.</b> Node's standard library only, and no build step for the page.</li>
+            <li><b>Local and read-only.</b> Never write to session files, never call the network.</li>
+            <li><b>Every change is tested.</b> Add or update a test in <code>test/</code> for each behavior you change, including edge cases and failures.</li>
+            <li><b>Forgiving parsing.</b> Transcripts can be half-written after a crash, or come from older Claude Code versions. Skip what you can't read; never fail the whole page.</li>
+          </ul>
+
+          <h3 id="pull-requests">Pull requests</h3>
+          <ol>
+            <li>Create a branch from <code>main</code>.</li>
+            <li>Keep commits small, with one change each, using <a href="https://www.conventionalcommits.org">conventional commit</a> titles such as <code>feat:</code>, <code>fix:</code> or <code>docs:</code>.</li>
+            <li>Make sure <code>npm test</code> passes.</li>
+            <li>Open a pull request that explains what changed and why. Add a screenshot for anything visual.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" style="padding-top:24px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FAQ</div><h2>Questions</h2></div>
+      <div class="faq">
+        <details><summary>Does claude-gui send my code or conversations anywhere?</summary><p>No. It reads files on your disk and serves them to your own browser on 127.0.0.1. It makes no network calls, and it rejects requests from other websites.</p></details>
+        <details><summary>Can it change or delete my sessions?</summary><p>No. It only reads the transcripts. The only action it takes is opening a terminal window when you click Resume.</p></details>
+        <details><summary>Is the cost what I actually paid?</summary><p>Only if you pay for the API by the token. On a subscription plan, the number is what the same tokens would cost at API list prices. That's still a good way to see which sessions were heavy.</p></details>
+        <details><summary>Does it work on Windows and Linux?</summary><p>Yes. Browsing, search and every detail work everywhere Node.js 18.3+ runs. One-click resume opens Terminal or iTerm on macOS, a new <code>cmd</code> window on Windows, and <code>x-terminal-emulator</code> on Linux.</p></details>
+        <details><summary>Is it fast with a lot of history?</summary><p>Yes. Sessions are cached until their file changes, so after the first load pages open almost instantly. The first full search reads your whole history once and is quick after that.</p></details>
+        <details><summary>Is this made by Anthropic?</summary><p>No. claude-gui is an independent open-source project. It isn't affiliated with or endorsed by Anthropic.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <div class="mark"><svg width="34" height="34"><use href="#i-history"/></svg></div>
+      <h2>Never lose a session again</h2>
+      <p style="color:var(--text-2);font-size:18px;margin:14px 0 0">One command. Nothing to configure. Nothing leaves your machine.</p>
+      <div class="install"><span><span class="prompt">$ </span>npx claude-gui</span><button class="copy" type="button" data-copy="npx claude-gui" aria-label="Copy install command"><svg width="16" height="16"><use href="#i-copy"/></svg></button></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Haytam Bakouane · MIT License · <a href="https://github.com/hbakouane/claude-gui">GitHub</a></span>
+    <span>claude-gui is not affiliated with or endorsed by Anthropic. Claude is a trademark of Anthropic, PBC.</span>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Screenshot" tabindex="-1"><img alt=""></div>
+<div class="toast" id="toast" role="status" aria-live="polite">Copied</div>
+
+<script>
+  const toast = document.getElementById('toast');
+  let timer;
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-copy]');
+    if (!button) return;
+    try { await navigator.clipboard.writeText(button.dataset.copy); toast.textContent = 'Copied to clipboard'; }
+    catch { toast.textContent = 'Copy failed. Select the text instead.'; }
+    toast.classList.add('show');
+    clearTimeout(timer);
+    timer = setTimeout(() => toast.classList.remove('show'), 1600);
+  });
+
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImage = lightbox.querySelector('img');
+  document.querySelectorAll('.shot img').forEach((img) => img.addEventListener('click', () => {
+    lightboxImage.src = img.src;
+    lightboxImage.alt = img.alt;
+    lightbox.classList.add('open');
+    lightbox.focus();
+  }));
+  const closeLightbox = () => lightbox.classList.remove('open');
+  lightbox.addEventListener('click', closeLightbox);
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeLightbox(); });
+</script>
+</body>
+</html>
