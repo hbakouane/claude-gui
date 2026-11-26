@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "description": "A local web dashboard to browse your Claude Code sessions by project: title, branch, PRs, worktree, idle time, MCPs used and session ID.",
   "type": "module",
+  "bin": {
+    "claude-sessions-dashboard": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public"
+  ],
   "scripts": {
+    "start": "node bin/cli.js",
     "test": "node --test"
   },
   "engines": {
