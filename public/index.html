@@ -165,15 +165,85 @@
   .pcard .arrow { color: var(--text-3); transition: transform .2s, color .2s; }
   .pcard:hover .arrow { color: var(--accent); transform: translateX(2px); }
 
-  /* Drawer */
+  /* Overlay */
   .backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(12, 10, 9, .32); opacity: 0; pointer-events: none; transition: opacity .2s; }
-  .drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 31; width: min(540px, 100vw); display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); box-shadow: -24px 0 60px -12px rgba(0, 0, 0, .25); transform: translateX(104%); transition: transform .26s cubic-bezier(.2, .8, .2, 1); visibility: hidden; }
-  .is-drawer-open .backdrop { opacity: 1; pointer-events: auto; }
-  .is-drawer-open .drawer { transform: none; visibility: visible; }
-  .drawer:focus { outline: none; }
-  .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-  .drawer-body { flex: 1; overflow-y: auto; padding: 22px 24px 32px; }
-  .drawer h2 { margin: 0 0 20px; font-size: 19px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; overflow-wrap: anywhere; }
+
+  /* Session page */
+  .session-head { margin-bottom: 24px; }
+  .session-head h1 { margin: 12px 0 0; font-size: 24px; font-weight: 650; letter-spacing: -.025em; line-height: 1.25; overflow-wrap: anywhere; }
+  .session-head .s-meta { margin-top: 12px; align-items: center; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; }
+  .back-link:hover { color: var(--text); }
+  .back-link svg { transform: rotate(180deg); }
+  .session-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
+  .session-aside { position: sticky; top: 84px; display: grid; gap: 24px; max-height: calc(100vh - 104px); overflow-y: auto; padding-bottom: 8px; }
+  .session-aside .section { margin: 0; }
+  .session-aside dl.props { grid-template-columns: 104px minmax(0, 1fr); }
+  .chat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); min-width: 0; }
+  .chat-toolbar { position: sticky; top: 60px; z-index: 4; display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); border-radius: 14px 14px 0 0; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 13px; color: var(--text-2); }
+  .chat-toolbar strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; white-space: nowrap; }
+  .switch input { appearance: none; -webkit-appearance: none; position: relative; width: 30px; height: 18px; margin: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .15s; }
+  .switch input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform .15s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { transform: translateX(12px); }
+  .chat { display: flex; flex-direction: column; gap: 22px; padding: 24px 22px 28px; }
+  .day { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+  .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .msg-user { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .bubble { max-width: min(80%, 720px); padding: 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+  .bubble.command { display: inline-flex; align-items: center; gap: 7px; font: 12.5px/1.5 var(--mono); background: var(--subtle); border-color: var(--border); color: var(--text-2); }
+  .msg-time { font-size: 11.5px; font-weight: 400; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .msg-claude { display: flex; gap: 12px; align-items: flex-start; }
+  .claude-avatar { width: 28px; height: 28px; border-radius: 8px; flex: none; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #e8957a, #c8643f); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+  .turn { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .turn-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; line-height: 28px; }
+  .reply { position: relative; padding-right: 28px; }
+  .reply .msg-copy { position: absolute; top: -2px; right: 0; opacity: 0; transition: opacity .12s; }
+  .reply:hover .msg-copy, .reply .msg-copy:focus-visible { opacity: 1; }
+  .tool { border: 1px solid var(--border); border-radius: 9px; background: var(--subtle); overflow: hidden; }
+  .tool > summary { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 10px; cursor: pointer; list-style: none; font-size: 12.5px; }
+  .tool > summary::-webkit-details-marker { display: none; }
+  .tool > summary:hover { background: var(--hover); }
+  .tool .chev { display: flex; color: var(--text-3); transition: transform .15s; }
+  .tool[open] .chev { transform: rotate(90deg); }
+  .tool-icon { display: flex; color: var(--text-3); }
+  .tool-name { font-weight: 600; white-space: nowrap; }
+  .tool-sum { flex: 1; min-width: 0; color: var(--text-2); font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tool-state { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .tool-state.error { color: #dc2626; }
+  .tool-state.pending { color: var(--text-3); font-weight: 500; }
+  .tool-body { border-top: 1px solid var(--border); }
+  .tool-label { padding: 9px 12px 0; font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+  .tool-body pre { margin: 0; padding: 6px 12px 12px; max-height: 360px; overflow: auto; font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
+  .hide-tools .tool, .hide-tools .tools-only { display: none; }
+  .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
+  .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
+  .compact-note > summary { padding: 10px 14px; cursor: pointer; font-weight: 550; }
+  .compact-note .md { padding: 0 14px 12px; }
+  .jump { position: fixed; right: 28px; bottom: 28px; z-index: 20; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); }
+  .jump svg { transform: rotate(90deg); }
+
+  /* Markdown */
+  .md { line-height: 1.6; overflow-wrap: anywhere; }
+  .md > :first-child { margin-top: 0; }
+  .md > :last-child { margin-bottom: 0; }
+  .md p, .md ul, .md ol, .md blockquote, .md pre, .md .md-table { margin: 0 0 10px; }
+  .md h3, .md h4, .md h5, .md h6 { margin: 16px 0 8px; font-size: 14.5px; font-weight: 650; }
+  .md h3 { font-size: 16px; }
+  .md ul, .md ol { padding-left: 22px; }
+  .md li { margin: 3px 0; }
+  .md code { padding: 1px 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--hover); font-size: 12.5px; }
+  .md pre { padding: 12px 14px; border-radius: 9px; background: #1c1917; color: #e7e5e4; overflow-x: auto; }
+  .md pre code { padding: 0; border: 0; background: none; color: inherit; line-height: 1.55; }
+  .md blockquote { padding-left: 12px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+  .md a { color: var(--accent-strong); }
+  .md hr { margin: 14px 0; border: 0; border-top: 1px solid var(--border); }
+  .md-table { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .md table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .md th, .md td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .md th { background: var(--subtle); font-weight: 600; }
+  .md tr:last-child td { border-bottom: 0; }
   .section { margin-top: 26px; }
   .section:first-of-type { margin-top: 0; }
   .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
@@ -218,6 +288,8 @@
   @media (max-width: 1180px) {
     .thead, .row { grid-template-columns: minmax(0, 1fr) 140px 90px 130px; }
     .c-mcp { display: none; }
+    .session-layout { grid-template-columns: minmax(0, 1fr); }
+    .session-aside { position: static; max-height: none; order: -1; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
   }
   @media (max-width: 920px) {
     .shell { grid-template-columns: minmax(0, 1fr); }
@@ -240,6 +312,12 @@
     .search input { padding-right: 12px; }
     dl.props { grid-template-columns: 1fr; }
     dl.props dt { border-bottom: 0; padding-bottom: 2px; min-height: 0; background: none; font-size: 12px; }
+    .session-aside dl.props { grid-template-columns: 1fr; }
+    .chat { padding: 18px 14px 24px; }
+    .chat-toolbar { flex-wrap: wrap; padding: 10px 14px; }
+    .bubble { max-width: 92%; }
+    .msg-claude { gap: 10px; }
+    .jump { right: 16px; bottom: 16px; }
   }
 </style>
 </head>
@@ -279,7 +357,6 @@
   </div>
 </div>
 <div class="backdrop" id="backdrop"></div>
-<aside class="drawer" id="drawer" tabindex="-1" role="dialog" aria-modal="true" aria-label="Session details"></aside>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <noscript><p style="padding:24px">This dashboard needs JavaScript.</p></noscript>
 
@@ -306,6 +383,10 @@
     arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
     list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+    sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
+    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+    wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
     alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   };
   const icon = (name, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -324,8 +405,9 @@
   const GROUP_ORDER = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Older'];
 
   const $ = (id) => document.getElementById(id);
-  const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), drawer = $('drawer'), search = $('search'), toast = $('toast');
-  const state = { projects: null, projectsError: null, sessions: null, sessionsError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0 };
+  const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
+  const state = { projects: null, projectsError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: true };
+  try { state.showTools = localStorage.getItem('showTools') !== 'false'; } catch {}
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tilde = (path) => String(path ?? '').replace(/^\/(Users|home)\/[^/]+/, '~');
@@ -395,6 +477,7 @@
   const currentProject = () => state.projects?.find((p) => p.id === state.projectId);
   const currentSession = () => state.sessionId && state.sessions?.find((s) => s.id === state.sessionId);
   const sessionHref = (id) => `#/p/${encodeURIComponent(state.projectId)}/s/${encodeURIComponent(id)}`;
+  const projectHref = () => `#/p/${encodeURIComponent(state.projectId)}`;
 
   async function getJSON(url) {
     const response = await fetch(url, { cache: 'no-store' });
@@ -424,12 +507,18 @@
 
   function renderTopbar() {
     const project = currentProject();
-    $('crumbs').innerHTML = state.projectId
-      ? `<a href="#/">Projects</a><span class="sep">${icon('chevron', 14)}</span><span class="current">${esc(project ? baseName(project.path) : state.projectId)}</span>`
-      : '<span class="current">Projects</span>';
+    const session = currentSession();
+    const projectName = esc(project ? baseName(project.path) : '…');
+    const sep = `<span class="sep">${icon('chevron', 14)}</span>`;
+    $('crumbs').innerHTML = !state.projectId
+      ? '<span class="current">Projects</span>'
+      : state.sessionId
+        ? `<a href="#/">Projects</a>${sep}<a href="${projectHref()}">${projectName}</a>${sep}<span class="current" style="max-width:360px">${esc(session ? session.title : 'Session')}</span>`
+        : `<a href="#/">Projects</a>${sep}<span class="current">${projectName}</span>`;
+    document.querySelector('.search').hidden = Boolean(state.sessionId);
     search.placeholder = state.projectId ? 'Search sessions…' : 'Search projects…';
     search.title = state.projectId ? 'Search by title, branch, PR, session ID or MCP server' : 'Search by project name or path';
-    document.title = project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
+    document.title = session ? `${session.title} · Claude Sessions` : project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
     tickUpdated();
   }
 
@@ -485,7 +574,7 @@
     const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
     const meta = branchChip(s) + (s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : '') + s.prs.map(prChip).join('') + folder;
     return `
-      <div class="row${s.id === state.sessionId ? ' is-open' : ''}" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
+      <div class="row" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
         <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div></div></div>
         <div class="c-mcp">${mcpChips(s.mcps, 2)}</div>
         <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
@@ -543,60 +632,235 @@
 
   function renderContent() {
     const focusedKey = content.contains(document.activeElement) ? document.activeElement.dataset.key : null;
-    content.innerHTML = state.projectId ? renderProject() : renderOverview();
+    content.innerHTML = state.sessionId && !state.sessionsError ? renderSession() : state.projectId ? renderProject() : renderOverview();
     if (focusedKey) {
       [...content.querySelectorAll('[data-nav]')].find((el) => el.dataset.key === focusedKey)?.focus({ preventScroll: true });
     }
   }
 
-  function renderDrawer() {
-    const s = currentSession();
-    document.body.classList.toggle('is-drawer-open', Boolean(s));
-    if (!s) return;
-    const st = status(s.lastActivity);
+  /* ---------- Markdown (escape first, then add a small set of safe tags) ---------- */
+
+  function inline(text) {
+    const saved = [];
+    const keep = (html) => `\u0001${saved.push(html) - 1}\u0001`;
+    let out = esc(text);
+    out = out.replace(/`([^`]+)`/g, (_, code) => keep(`<code>${code}</code>`));
+    out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`));
+    out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, lead, url) => `${lead}${keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`)}`);
+    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, '$1<em>$2</em>');
+    return out.replace(/\u0001(\d+)\u0001/g, (_, i) => saved[i]);
+  }
+
+  function markdown(source) {
+    const fences = [];
+    const text = String(source ?? '').replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, (_, code) => `\u0000${fences.push(`<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`) - 1}\u0000`);
+    const lines = text.split('\n');
+    const isTableRow = (line) => /^\s*\|.*\|\s*$/.test(line ?? '');
+    const blockStart = (line) => /^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\u0000)/.test(line) || /^\s*(-{3,}|\*{3,})\s*$/.test(line);
+    const cells = (row) => row.trim().replace(/^\||\|$/g, '').split('|').map((cell) => inline(cell.trim()));
+    let html = '';
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      let match;
+      if (!line.trim()) { i++; continue; }
+      if ((match = line.trim().match(/^\u0000(\d+)\u0000$/))) { html += fences[match[1]]; i++; continue; }
+      if ((match = line.match(/^\s*(#{1,6})\s+(.*)$/))) { const level = Math.min(match[1].length + 2, 6); html += `<h${level}>${inline(match[2])}</h${level}>`; i++; continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { html += '<hr>'; i++; continue; }
+      if (isTableRow(line) && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1] ?? '')) {
+        const rows = [];
+        while (isTableRow(lines[i])) rows.push(lines[i++]);
+        const [head, , ...body] = rows;
+        html += `<div class="md-table"><table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        continue;
+      }
+      const listType = /^\s*[-*+]\s+/.test(line) ? 'ul' : /^\s*\d+[.)]\s+/.test(line) ? 'ol' : null;
+      if (listType) {
+        const marker = listType === 'ul' ? /^\s*[-*+]\s+/ : /^\s*\d+[.)]\s+/;
+        const items = [];
+        while (i < lines.length && lines[i].trim()) {
+          if (marker.test(lines[i])) items.push(lines[i].replace(marker, ''));
+          else if (/^\s+\S/.test(lines[i]) && items.length && !/^\s*\u0000/.test(lines[i])) items[items.length - 1] += `\n${lines[i].trim()}`;
+          else break;
+          i++;
+        }
+        html += `<${listType}>${items.map((item) => `<li>${item.split('\n').map(inline).join('<br>')}</li>`).join('')}</${listType}>`;
+        continue;
+      }
+      if (/^\s*>/.test(line)) {
+        const quote = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/, ''));
+        html += `<blockquote>${quote.map(inline).join('<br>')}</blockquote>`;
+        continue;
+      }
+      const paragraph = [];
+      while (i < lines.length && lines[i].trim() && !(paragraph.length && (blockStart(lines[i]) || isTableRow(lines[i])))) paragraph.push(lines[i++]);
+      html += `<p>${paragraph.map(inline).join('<br>')}</p>`;
+    }
+    return html;
+  }
+
+  /* ---------- Session page ---------- */
+
+  const timeOf = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+  function dayLabel(iso) {
+    const diff = dayDiff(iso);
+    if (diff <= 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  function toolLabel(name) {
+    const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+    if (mcp) return [`${mcpName(mcp[1])} · ${mcp[2]}`, 'plug'];
+    if (name === 'Bash') return ['Bash', 'terminal'];
+    if (['Read', 'Write', 'Edit', 'NotebookEdit'].includes(name)) return [name, 'file'];
+    if (['Grep', 'Glob'].includes(name)) return [name, 'search'];
+    if (['WebSearch', 'WebFetch'].includes(name)) return [name, 'globe'];
+    if (name === 'Agent' || name === 'Task') return [name, 'sparkles'];
+    return [name, 'wrench'];
+  }
+
+  const toolsById = new Map();
+
+  function toolBlock(tool) {
+    toolsById.set(tool.id, tool);
+    const [label, iconName] = toolLabel(tool.name);
+    const stateLabel = tool.isError ? '<span class="tool-state error">Failed</span>' : tool.result === null ? '<span class="tool-state pending">No result</span>' : '';
+    return `<details class="tool" data-tool="${esc(tool.id)}"><summary><span class="chev">${icon('chevron', 12)}</span><span class="tool-icon">${icon(iconName, 13)}</span><span class="tool-name">${esc(label)}</span><span class="tool-sum" title="${esc(tool.summary)}">${esc(tool.summary)}</span>${stateLabel}</summary><div class="tool-body"></div></details>`;
+  }
+
+  function fillTool(details) {
+    const body = details.querySelector('.tool-body');
+    const tool = toolsById.get(details.dataset.tool);
+    if (!tool || body.childElementCount) return;
+    body.innerHTML = `<div class="tool-label">Input</div><pre>${esc(tool.input)}</pre>${tool.result === null ? '' : `<div class="tool-label">${tool.isError ? 'Error' : 'Result'}</div><pre>${esc(tool.result || '(empty)')}</pre>`}`;
+  }
+
+  function chatBody(items) {
+    toolsById.clear();
+    let html = '';
+    let day = null;
+    let turn = null;
+    const closeTurn = () => {
+      if (!turn) return;
+      html += `<div class="msg-claude${turn.onlyTools ? ' tools-only' : ''}"><span class="claude-avatar">${icon('sparkles', 15)}</span><div class="turn"><div class="turn-head">Claude <span class="msg-time">${esc(timeOf(turn.at))}</span></div>${turn.html}</div></div>`;
+      turn = null;
+    };
+    for (const item of items) {
+      const itemDay = item.at ? new Date(item.at).toDateString() : day;
+      if (itemDay && itemDay !== day) {
+        closeTurn();
+        html += `<div class="day">${esc(dayLabel(item.at))}</div>`;
+        day = itemDay;
+      }
+      if (item.kind === 'assistant' || item.kind === 'tool') {
+        turn ??= { at: item.at, html: '', onlyTools: true };
+        if (item.kind === 'tool') {
+          turn.html += toolBlock(item);
+        } else {
+          turn.onlyTools = false;
+          turn.html += `<div class="reply"><div class="md">${markdown(item.text)}</div><button class="icon-btn sm msg-copy" type="button" data-copy="${esc(item.text)}" data-label="Message" title="Copy message" aria-label="Copy message">${icon('copy', 13)}</button></div>`;
+        }
+        continue;
+      }
+      closeTurn();
+      if (item.kind === 'user') html += `<div class="msg-user"><div class="bubble">${esc(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
+      else if (item.kind === 'command') html += `<div class="msg-user"><div class="bubble command">${icon('terminal', 13)}${esc(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
+      else if (item.kind === 'event') html += `<div class="event">${icon('activity', 12)}<span>${esc(item.text)}</span></div>`;
+      else if (item.kind === 'compact') html += `<details class="compact-note"><summary>Earlier conversation was summarized to free up context</summary><div class="md">${markdown(item.text)}</div></details>`;
+    }
+    closeTurn();
+    return html;
+  }
+
+  function renderChat() {
+    if (state.messagesError) {
+      return emptyState('alert', 'Could not load the conversation', esc(state.messagesError.message), `<button class="btn" data-action="retry">${icon('refresh', 14)} Try again</button>`);
+    }
+    if (!state.messages) {
+      return `<div class="chat-toolbar"><span class="sk" style="height:12px;width:220px"></span></div><div class="chat">
+        <div class="msg-user"><span class="sk" style="height:40px;width:52%;border-radius:16px"></span></div>
+        <div class="msg-claude"><span class="sk" style="width:28px;height:28px;border-radius:8px"></span><div class="turn"><span class="sk" style="height:12px;width:90%"></span><span class="sk" style="height:12px;width:75%"></span><span class="sk" style="height:30px;width:100%"></span></div></div>
+        <div class="msg-user"><span class="sk" style="height:40px;width:38%;border-radius:16px"></span></div></div>`;
+    }
+    const count = (kind) => state.messages.filter((item) => item.kind === kind).length;
+    const toolbar = `<div class="chat-toolbar"><span><strong>${count('user') + count('command')}</strong> prompts · <strong>${count('assistant')}</strong> replies · <strong>${count('tool')}</strong> tool calls</span><span class="spacer"></span><label class="switch"><input type="checkbox" id="tools-toggle"${state.showTools ? ' checked' : ''}> Show tool calls</label></div>`;
+    if (!state.messages.length) return toolbar + emptyState('history', 'No messages yet', 'This session has no conversation to show.');
+    return `${toolbar}<div class="chat${state.showTools ? '' : ' hide-tools'}">${chatBody(state.messages)}</div>`;
+  }
+
+  function sessionInfo(s) {
     const copyBtn = (value, label) => `<button class="icon-btn sm" type="button" data-copy="${esc(value)}" data-label="${esc(label)}" title="Copy ${esc(label.toLowerCase())}" aria-label="Copy ${esc(label.toLowerCase())}">${icon('copy', 14)}</button>`;
-    drawer.innerHTML = `
-      <div class="drawer-head">
-        <span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle <span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>
-        <div class="spacer"></div>
-        <button class="icon-btn" type="button" data-action="close" aria-label="Close details" title="Close (Esc)">${icon('x', 18)}</button>
+    return `
+      <div class="section">
+        <div class="section-title"><span>Resume</span></div>
+        <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
+        <div class="hint">Paste in a terminal to pick up exactly where this session stopped.</div>
       </div>
-      <div class="drawer-body">
-        <h2>${esc(s.title)}</h2>
-        <div class="section">
-          <div class="section-title"><span>Resume</span></div>
-          <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
-          <div class="hint">Paste in a terminal to pick up exactly where this session stopped.</div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Details</span></div>
-          <dl class="props">
-            <dt>Session ID</dt><dd><span class="val mono">${esc(s.id)}</span>${copyBtn(s.id, 'Session ID')}</dd>
-            <dt>Folder</dt><dd><span class="val mono" title="${esc(s.cwd)}">${esc(tilde(s.cwd) || '—')}</span>${s.cwd ? copyBtn(s.cwd, 'Folder') : ''}</dd>
-            <dt>Git branch</dt><dd><span class="val mono">${esc(s.gitBranch || '—')}</span>${s.gitBranch ? copyBtn(s.gitBranch, 'Branch') : ''}</dd>
-            <dt>Git worktree</dt><dd><span class="val">${s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : 'No'}</span></dd>
-            <dt>Last activity</dt><dd><span class="val">${esc(fullDate(s.lastActivity))}</span></dd>
-            <dt>Idle for</dt><dd><span class="val" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></dd>
-          </dl>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Pull requests</span><span>${s.prs.length}</span></div>
-          ${s.prs.length ? `<div class="list">${s.prs.map((pr) => /^https:\/\//.test(pr.url)
-            ? `<a class="list-item" href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow"><strong>${esc(repoName(pr.repository) || pr.url)}</strong> <span class="muted">#${esc(pr.number)}</span><div class="muted" style="font-size:12px">${esc(pr.repository)}</div></span>${icon('external', 14)}</a>`
-            : `<div class="list-item"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow">${esc(pr.url)}</span></div>`).join('')}</div>` : '<div class="none">No pull requests were opened in this session.</div>'}
-        </div>
-        <div class="section">
-          <div class="section-title"><span>MCP servers used</span><span>${s.mcps.length}</span></div>
-          ${s.mcps.length ? `<div class="chips">${s.mcps.map((m) => `<span class="chip chip-mcp" title="${esc(m)}">${icon('plug', 12)}<span>${esc(mcpName(m))}</span></span>`).join('')}</div>` : '<div class="none">This session did not call any MCP server.</div>'}
-        </div>
+      <div class="section">
+        <div class="section-title"><span>Details</span></div>
+        <dl class="props">
+          <dt>Session ID</dt><dd><span class="val mono">${esc(s.id)}</span>${copyBtn(s.id, 'Session ID')}</dd>
+          <dt>Folder</dt><dd><span class="val mono" title="${esc(s.cwd)}">${esc(tilde(s.cwd) || '—')}</span>${s.cwd ? copyBtn(s.cwd, 'Folder') : ''}</dd>
+          <dt>Git branch</dt><dd><span class="val mono">${esc(s.gitBranch || '—')}</span>${s.gitBranch ? copyBtn(s.gitBranch, 'Branch') : ''}</dd>
+          <dt>Git worktree</dt><dd><span class="val">${s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : 'No'}</span></dd>
+          <dt>Last activity</dt><dd><span class="val">${esc(fullDate(s.lastActivity))}</span></dd>
+          <dt>Idle for</dt><dd><span class="val" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></dd>
+        </dl>
+      </div>
+      <div class="section">
+        <div class="section-title"><span>Pull requests</span><span>${s.prs.length}</span></div>
+        ${s.prs.length ? `<div class="list">${s.prs.map((pr) => /^https:\/\//.test(pr.url)
+          ? `<a class="list-item" href="${esc(pr.url)}" target="_blank" rel="noopener noreferrer"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow"><strong>${esc(repoName(pr.repository) || pr.url)}</strong> <span class="muted">#${esc(pr.number)}</span><div class="muted" style="font-size:12px">${esc(pr.repository)}</div></span>${icon('external', 14)}</a>`
+          : `<div class="list-item"><span class="pr-icon">${icon('pr', 16)}</span><span class="grow">${esc(pr.url)}</span></div>`).join('')}</div>` : '<div class="none">No pull requests were opened in this session.</div>'}
+      </div>
+      <div class="section">
+        <div class="section-title"><span>MCP servers used</span><span>${s.mcps.length}</span></div>
+        ${s.mcps.length ? `<div class="chips">${s.mcps.map((m) => `<span class="chip chip-mcp" title="${esc(m)}">${icon('plug', 12)}<span>${esc(mcpName(m))}</span></span>`).join('')}</div>` : '<div class="none">This session did not call any MCP server.</div>'}
       </div>`;
+  }
+
+  function renderSession() {
+    const project = currentProject();
+    const s = currentSession();
+    if (!state.sessions) {
+      return `<div class="session-head"><span class="sk" style="display:block;height:12px;width:90px"></span><div class="sk" style="height:26px;width:55%;margin-top:14px"></div><div class="sk" style="height:22px;width:35%;margin-top:12px"></div></div><div class="session-layout"><section class="chat-card">${renderChat()}</section><aside class="session-aside"><div class="sk" style="height:90px;border-radius:10px"></div><div class="sk" style="height:250px;border-radius:10px"></div></aside></div>`;
+    }
+    if (!s) {
+      return emptyState('history', 'Session not found', 'This session no longer exists in this project.', `<a class="btn" href="${projectHref()}">Back to sessions</a>`);
+    }
+    const st = status(s.lastActivity);
+    return `
+      <div class="session-head">
+        <a class="back-link" href="${projectHref()}">${icon('arrow', 14)} ${esc(project ? baseName(project.path) : 'Sessions')}</a>
+        <h1>${esc(s.title)}</h1>
+        <div class="s-meta"><span class="pill ${st}"><span class="dot ${st}"></span>${STATUS_LABEL[st]} · idle&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>${branchChip(s)}${s.isWorktree ? `<span class="chip chip-worktree">${icon('layers', 12)}<span>Worktree</span></span>` : ''}${s.prs.map(prChip).join('')}</div>
+      </div>
+      <div class="session-layout">
+        <section class="chat-card" aria-label="Conversation">${renderChat()}</section>
+        <aside class="session-aside" aria-label="Session details">${sessionInfo(s)}</aside>
+      </div>
+      <button class="jump" type="button" data-action="latest">${icon('arrow', 14)} Latest</button>`;
+  }
+
+  function renderSessionPreservingView() {
+    const nearBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 160;
+    const scrollTop = main.scrollTop;
+    const open = [...content.querySelectorAll('details.tool[open]')].map((el) => el.dataset.tool);
+    renderContent();
+    for (const id of open) {
+      const details = content.querySelector(`details.tool[data-tool="${CSS.escape(id)}"]`);
+      if (details) { fillTool(details); details.open = true; }
+    }
+    main.scrollTop = nearBottom ? main.scrollHeight : scrollTop;
   }
 
   function render() {
     renderNav();
     renderTopbar();
     renderContent();
-    renderDrawer();
   }
 
   function tickUpdated() {
@@ -620,6 +884,25 @@
     }
   }
 
+  const messagesKey = () => `${state.projectId}/${state.sessionId}`;
+  const messagesSignature = () => {
+    const last = state.messages?.at(-1);
+    return state.messagesError ? 'error' : state.messages ? `${state.messages.length}:${last?.at}:${last?.result?.length ?? ''}` : 'none';
+  };
+
+  async function loadMessages() {
+    const key = messagesKey();
+    try {
+      const messages = await getJSON(`/api/projects/${encodeURIComponent(state.projectId)}/sessions/${encodeURIComponent(state.sessionId)}/messages`);
+      if (messagesKey() !== key) return;
+      state.messages = messages;
+      state.messagesError = null;
+    } catch (error) {
+      if (messagesKey() !== key) return;
+      state.messagesError = error;
+    }
+  }
+
   async function loadSessions() {
     const id = state.projectId;
     try {
@@ -638,11 +921,16 @@
     if (refreshing) return;
     refreshing = true;
     shell.classList.add('is-refreshing');
-    await Promise.all([loadProjects(), state.projectId ? loadSessions() : null]);
+    const before = messagesSignature();
+    await Promise.all([loadProjects(), state.projectId ? loadSessions() : null, state.sessionId ? loadMessages() : null]);
     state.updatedAt = Date.now();
     refreshing = false;
     shell.classList.remove('is-refreshing');
-    render();
+    renderNav();
+    renderTopbar();
+    if (!state.sessionId) renderContent();
+    else if (messagesSignature() !== before) renderSessionPreservingView();
+    else tick();
   }
 
   /* ---------- Routing ---------- */
@@ -655,7 +943,8 @@
   async function applyRoute() {
     const { projectId, sessionId } = parseRoute();
     const projectChanged = projectId !== state.projectId;
-    const wasOpen = Boolean(state.sessionId);
+    const sessionChanged = projectChanged || sessionId !== state.sessionId;
+    const leftSession = !sessionId ? state.sessionId : null;
     state.projectId = projectId;
     state.sessionId = sessionId;
     document.body.classList.remove('nav-open');
@@ -664,26 +953,24 @@
       state.sessionsError = null;
       state.filter = 'all';
       search.value = '';
+    }
+    if (sessionChanged) {
+      state.messages = null;
+      state.messagesError = null;
       main.scrollTop = 0;
     }
     render();
-    if (projectChanged && projectId) {
-      await loadSessions();
+    const loads = [projectChanged && projectId ? loadSessions() : null, sessionChanged && sessionId ? loadMessages() : null].filter(Boolean);
+    if (loads.length) {
+      await Promise.all(loads);
       state.updatedAt = Date.now();
       render();
     }
-    if (sessionId && currentSession()) {
-      drawer.focus({ preventScroll: true });
-      content.querySelector(`[data-session="${CSS.escape(sessionId)}"]`)?.scrollIntoView({ block: 'nearest' });
-    } else if (wasOpen && !sessionId) {
-      content.querySelector('.row.is-open, [data-session]')?.focus({ preventScroll: true });
+    if (leftSession) {
+      const row = content.querySelector(`[data-session="${CSS.escape(leftSession)}"]`);
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: 'center' });
     }
-  }
-
-  function closeDrawer() {
-    const id = state.sessionId;
-    location.hash = `#/p/${encodeURIComponent(state.projectId)}`;
-    requestAnimationFrame(() => content.querySelector(`[data-session="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }));
   }
 
   /* ---------- Actions ---------- */
@@ -724,7 +1011,7 @@
     }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'retry') return refresh();
-    if (action === 'close') return closeDrawer();
+    if (action === 'latest') return main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
     if (action === 'clear') {
       search.value = '';
       state.filter = 'all';
@@ -741,8 +1028,14 @@
   }
 
   content.addEventListener('click', handleClick);
-  drawer.addEventListener('click', handleClick);
-  $('backdrop').addEventListener('click', () => (state.sessionId ? closeDrawer() : document.body.classList.remove('nav-open')));
+  content.addEventListener('toggle', (event) => event.target.matches?.('details.tool') && event.target.open && fillTool(event.target), true);
+  content.addEventListener('change', (event) => {
+    if (event.target.id !== 'tools-toggle') return;
+    state.showTools = event.target.checked;
+    try { localStorage.setItem('showTools', String(state.showTools)); } catch {}
+    content.querySelector('.chat')?.classList.toggle('hide-tools', !state.showTools);
+  });
+  $('backdrop').addEventListener('click', () => document.body.classList.remove('nav-open'));
   $('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
   $('refresh-btn').addEventListener('click', refresh);
   search.addEventListener('input', renderContent);
@@ -767,7 +1060,7 @@
       return;
     }
     if (event.key === 'Escape') {
-      if (state.sessionId) return closeDrawer();
+      if (state.sessionId && !typing) return (location.hash = projectHref());
       if (document.body.classList.contains('nav-open')) return document.body.classList.remove('nav-open');
       if (typing && search.value) {
         search.value = '';
