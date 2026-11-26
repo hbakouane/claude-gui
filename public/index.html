@@ -171,6 +171,20 @@
   .btn-resume:disabled { opacity: .6; cursor: progress; }
   .chip-skill { color: var(--violet); background: var(--violet-soft); border-color: transparent; font-weight: 500; }
   .chip .who { font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+  .result-card { margin-bottom: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); overflow: hidden; }
+  .result-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--subtle); text-decoration: none; }
+  .result-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-head:hover strong { color: var(--accent-strong); }
+  .result { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--border); text-decoration: none; font-size: 13.5px; }
+  .result:last-child { border-bottom: 0; }
+  .result:hover, .result:focus-visible { background: var(--hover); outline: none; }
+  .result-who { font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
+  .result-who.user, .result-who.command { color: var(--accent-strong); }
+  .result-snippet { color: var(--text-2); line-height: 1.5; overflow-wrap: anywhere; }
+  .result-time { font-size: 12px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  mark { padding: 0 2px; border-radius: 3px; background: var(--amber-soft); color: var(--text); }
+  .flash { animation: flash 2.4s ease-out; border-radius: 12px; }
+  @keyframes flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent-soft); background: var(--accent-soft); } 100% { box-shadow: 0 0 0 4px transparent; } }
   .chip-cost { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--text); }
   .stat.static { cursor: default; }
   .stat.static:hover { border-color: var(--border); }
@@ -364,6 +378,7 @@
     .thead { display: none; }
     .row { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 16px; }
     .c-time, .c-id { display: none; }
+    .result { grid-template-columns: minmax(0, 1fr); gap: 4px; }
     .recent-list .row { grid-template-columns: minmax(0, 1fr) auto; }
     .search kbd { display: none; }
     .search input { padding-right: 12px; }
@@ -471,7 +486,7 @@
 
   const $ = (id) => document.getElementById(id);
   const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
-  const state = { projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false };
+  const state = { search: null, overviewQuery: '', focusIndex: null, projects: null, projectsError: null, recent: null, recentError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false };
   try { state.showTools = localStorage.getItem('showTools') === 'true'; } catch {}
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -480,7 +495,7 @@
   const parentPath = (path) => tilde(String(path ?? '').split('/').slice(0, -1).join('/')) || '/';
   const mcpName = (server) => server.replace(/^claude_ai_/, '').replace(/_/g, ' ');
   const repoName = (repository) => String(repository ?? '').split('/').pop();
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
   const money = (amount) => (amount < 0.01 ? '<$0.01' : amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: amount < 100 ? 2 : 0 }));
   const tokens = (n) => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
   const relativePath = (path, cwd) => (cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : tilde(path));
@@ -584,8 +599,8 @@
         ? `<a href="#/">Projects</a>${sep}<a href="${projectHref()}">${projectName}</a>${sep}<span class="current" style="max-width:360px">${esc(session ? session.title : 'Session')}</span>`
         : `<a href="#/">Projects</a>${sep}<span class="current">${projectName}</span>`;
     document.querySelector('.search').hidden = Boolean(state.sessionId);
-    search.placeholder = state.projectId ? 'Search sessions…' : 'Search projects…';
-    search.title = state.projectId ? 'Search by title, branch, PR, session ID or MCP server' : 'Search by project name or path';
+    search.placeholder = state.projectId ? 'Search sessions…' : 'Search all conversations…';
+    search.title = state.projectId ? 'Search by title, branch, PR, session ID, skill or MCP server' : 'Search what you and Claude said in every session';
     document.title = session ? `${session.title} · Claude Sessions` : project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
     tickUpdated();
   }
@@ -602,6 +617,7 @@
       return `<div class="page-head"><div><div class="sk" style="height:22px;width:140px"></div><div class="sk" style="height:12px;width:240px;margin-top:8px"></div></div></div>
         <div class="grid">${Array.from({ length: 6 }, () => `<div class="pcard"><div class="pcard-head"><span class="sk" style="width:36px;height:36px;border-radius:9px"></span><div style="flex:1"><div class="sk" style="height:13px;width:55%"></div><div class="sk" style="height:10px;width:80%;margin-top:7px"></div></div></div><div class="pcard-foot"><span class="sk" style="height:10px;width:90px"></span><span class="sk" style="height:10px;width:70px"></span></div></div>`).join('')}</div>`;
     }
+    if (search.value.trim().length >= 2) return renderSearch();
     const projects = state.projects.filter((p) => matchesQuery(projectText(p), search.value));
     const sessions = state.projects.reduce((sum, p) => sum + p.sessionCount, 0);
     return `
@@ -614,6 +630,58 @@
           <div class="pcard-foot"><span>${icon('list', 14)} ${plural(p.sessionCount, 'session')}</span><span title="${esc(fullDate(p.lastActivity))}"><span class="dot ${status(p.lastActivity)}"></span><span data-ago="${esc(p.lastActivity)}">${esc(ago(p.lastActivity))}</span></span></div>
         </a>`).join('')}</div>`
         : `<div class="table">${emptyState('search', 'No matching projects', `Nothing matches “${esc(search.value)}”.`, '<button class="btn" data-action="clear">Clear search</button>')}</div>`}`;
+  }
+
+  function highlight(text, query) {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean).map((term) => esc(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return terms.length ? esc(text).replace(new RegExp(terms.join('|'), 'gi'), (found) => `<mark>${found}</mark>`) : esc(text);
+  }
+
+  function renderSearch() {
+    const query = search.value.trim();
+    const result = state.search;
+    const head = (title, detail) => `<div class="page-head"><div><h1>${title}</h1><p>${detail}</p></div></div>`;
+    if (!result || result.query !== query || (result.loading && !result.data)) {
+      return `${head('Searching…', 'Looking through every conversation. The first search reads all your sessions and can take a few seconds.')}
+        ${Array.from({ length: 3 }, () => '<div class="result-card"><div class="result-head"><span class="sk" style="height:13px;width:40%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:90%"></span></div><div class="result"><span class="sk" style="height:10px"></span><span class="sk" style="height:12px;width:70%"></span></div></div>').join('')}`;
+    }
+    if (result.error) return emptyState('alert', 'Search failed', esc(result.error.message), `<button class="btn" data-action="clear">Clear search</button>`);
+    const { results, total, scanned, truncated } = result.data;
+    if (!results.length) return emptyState('search', 'No matches', `Nothing you or Claude said in ${plural(scanned, 'session')} matches “${esc(query)}”.`, '<button class="btn" data-action="clear">Clear search</button>');
+    const groups = new Map();
+    for (const match of results) {
+      if (!groups.has(match.sessionId)) groups.set(match.sessionId, { ...match, matches: [] });
+      groups.get(match.sessionId).matches.push(match);
+    }
+    const label = { user: 'You', command: 'Command', assistant: 'Claude' };
+    return `${head(plural(total, 'match', 'matches'), `In ${plural(groups.size, 'session')} · searched ${plural(scanned, 'session')}${truncated ? ' · showing the newest 200' : ''}`)}
+      ${[...groups.values()].map((group) => {
+        const base = `#/p/${encodeURIComponent(group.projectId)}/s/${encodeURIComponent(group.sessionId)}`;
+        return `<div class="result-card">
+          <a class="result-head" href="${esc(base)}"><strong>${esc(group.title)}</strong><span class="chip chip-project" title="${esc(group.projectPath)}">${icon('folder', 12)}<span>${esc(baseName(group.projectPath))}</span></span><span class="spacer"></span><span class="muted">${plural(group.matches.length, 'match', 'matches')}</span></a>
+          ${group.matches.map((match) => `<a class="result" href="${esc(`${base}?m=${match.index}`)}" data-nav data-key="m:${esc(group.sessionId)}:${match.index}"><span class="result-who ${match.kind}">${label[match.kind]}</span><span class="result-snippet">${highlight(match.snippet, query)}</span><span class="result-time">${match.at ? esc(shortDate(match.at)) : ''}</span></a>`).join('')}
+        </div>`;
+      }).join('')}`;
+  }
+
+  let searchTimer;
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    const query = search.value.trim();
+    if (state.projectId || query.length < 2) return;
+    searchTimer = setTimeout(async () => {
+      state.search = { query, loading: true, data: state.search?.query === query ? state.search.data : null };
+      renderContent();
+      try {
+        const data = await getJSON(`/api/search?q=${encodeURIComponent(query)}`);
+        if (search.value.trim() !== query) return;
+        state.search = { query, data };
+      } catch (error) {
+        if (search.value.trim() !== query) return;
+        state.search = { query, error };
+      }
+      if (!state.projectId) renderContent();
+    }, 300);
   }
 
   function resumeButton(projectId, sessionId, label = 'Resume') {
@@ -919,7 +987,7 @@
       html += `<div class="msg-claude${turn.onlyTools ? ' tools-only' : ''}"><span class="claude-avatar">${icon('sparkles', 15)}</span><div class="turn"><div class="turn-head">Claude <span class="msg-time">${esc(timeOf(turn.at))}</span></div>${turn.html}</div></div>`;
       turn = null;
     };
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
       const itemDay = item.at ? new Date(item.at).toDateString() : day;
       if (itemDay && itemDay !== day) {
         closeTurn();
@@ -932,13 +1000,13 @@
           turn.html += toolBlock(item);
         } else {
           turn.onlyTools = false;
-          turn.html += `<div class="reply"><div class="md">${markdown(item.text)}</div><button class="icon-btn sm msg-copy" type="button" data-copy="${esc(item.text)}" data-label="Message" title="Copy message" aria-label="Copy message">${icon('copy', 13)}</button></div>`;
+          turn.html += `<div class="reply" data-index="${index}"><div class="md">${markdown(item.text)}</div><button class="icon-btn sm msg-copy" type="button" data-copy="${esc(item.text)}" data-label="Message" title="Copy message" aria-label="Copy message">${icon('copy', 13)}</button></div>`;
         }
         continue;
       }
       closeTurn();
-      if (item.kind === 'user') html += `<div class="msg-user"><div class="bubble">${linkify(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
-      else if (item.kind === 'command') html += `<div class="msg-user"><div class="bubble command">${icon('terminal', 13)}${esc(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
+      if (item.kind === 'user') html += `<div class="msg-user" data-index="${index}"><div class="bubble">${linkify(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
+      else if (item.kind === 'command') html += `<div class="msg-user" data-index="${index}"><div class="bubble command">${icon('terminal', 13)}${esc(item.text)}</div><span class="msg-time">You · ${esc(timeOf(item.at))}</span></div>`;
       else if (item.kind === 'event') html += `<div class="event">${icon('activity', 12)}<span>${esc(item.text)}</span></div>`;
       else if (item.kind === 'compact') html += `<details class="compact-note"><summary>Earlier conversation was summarized to free up context</summary><div class="md">${markdown(item.text)}</div></details>`;
     }
@@ -1162,13 +1230,20 @@
   /* ---------- Routing ---------- */
 
   function parseRoute() {
-    const match = location.hash.match(/^#\/p\/([^/]+)(?:\/s\/([^/]+))?/);
-    return { projectId: match ? decodeURIComponent(match[1]) : null, sessionId: match?.[2] ? decodeURIComponent(match[2]) : null };
+    const match = location.hash.match(/^#\/p\/([^/]+)(?:\/s\/([^/?]+))?(?:\?m=(\d+))?/);
+    return {
+      projectId: match ? decodeURIComponent(match[1]) : null,
+      sessionId: match?.[2] ? decodeURIComponent(match[2]) : null,
+      focusIndex: match?.[3] ? Number(match[3]) : null,
+    };
   }
 
   async function applyRoute() {
-    const { projectId, sessionId } = parseRoute();
+    const { projectId, sessionId, focusIndex } = parseRoute();
     const projectChanged = projectId !== state.projectId;
+    const focusChanged = focusIndex !== state.focusIndex;
+    if (projectChanged && !state.projectId) state.overviewQuery = search.value;
+    state.focusIndex = focusIndex;
     const sessionChanged = projectChanged || sessionId !== state.sessionId;
     const leftSession = !sessionId ? state.sessionId : null;
     state.projectId = projectId;
@@ -1178,7 +1253,7 @@
       state.sessions = null;
       state.sessionsError = null;
       state.filter = 'all';
-      search.value = '';
+      search.value = projectId ? '' : state.overviewQuery;
     }
     if (sessionChanged) {
       state.messages = null;
@@ -1192,8 +1267,15 @@
       state.updatedAt = Date.now();
       render();
     }
-    if (sessionChanged && sessionId && chatBox()) {
-      chatBox().scrollTop = chatBox().scrollHeight;
+    if ((sessionChanged || focusChanged) && sessionId && chatBox()) {
+      const target = focusIndex === null ? null : chatBox().querySelector(`[data-index="${focusIndex}"]`);
+      if (target) {
+        target.scrollIntoView({ block: 'center' });
+        target.classList.add('flash');
+        setTimeout(() => target.classList.remove('flash'), 2400);
+      } else {
+        chatBox().scrollTop = chatBox().scrollHeight;
+      }
       updateJump();
     }
     if (leftSession) {
@@ -1317,7 +1399,10 @@
   $('backdrop').addEventListener('click', () => document.body.classList.remove('nav-open'));
   $('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
   $('refresh-btn').addEventListener('click', refresh);
-  search.addEventListener('input', renderContent);
+  search.addEventListener('input', () => {
+    renderContent();
+    scheduleSearch();
+  });
   window.addEventListener('hashchange', applyRoute);
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refresh());
 
