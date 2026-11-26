@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
+const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
 const MCP_TOOL = /^mcp__(.+?)__/;
 const TITLE_LENGTH = 80;
 
@@ -29,7 +30,7 @@ export async function listProjects(root) {
   }));
 
   return projects
-    .filter(Boolean)
+    .filter((project) => project && !TEMP_PATH.test(project.path))
     .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 

@@ -109,7 +109,7 @@ describe('parseSession', () => {
 });
 
 describe('listProjects', () => {
-  it('lists projects by real folder path, newest first, skipping empty folders', async () => {
+  it('lists projects by real folder path, newest first, hiding temp folders and empty folders', async () => {
     const projectsDir = await mkdtemp(join(tmpdir(), 'csd-projects-'));
     const previousRoot = root;
     root = projectsDir;
@@ -118,6 +118,8 @@ describe('listProjects', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       await writeSession('-Users-me-new', 'b', lines({ type: 'mode' }, { type: 'user', cwd: '/Users/me/new', message: { content: 'hi' } }));
       await writeSession('-Users-me-new', 'c', lines({ type: 'user', cwd: '/Users/me/new', message: { content: 'hi' } }));
+      await writeSession('-private-var-folders-x', 'd', lines({ type: 'user', cwd: '/private/var/folders/x/T/tmp', message: { content: 'hi' } }));
+      await writeSession('-tmp-x', 'e', lines({ type: 'user', cwd: '/tmp/x', message: { content: 'hi' } }));
       await mkdir(join(projectsDir, '-Users-me-empty'));
 
       const projects = await listProjects(projectsDir);
