@@ -449,16 +449,24 @@ describe('parseConversation', () => {
     assert.equal(items[0].at, '2026-11-20T10:00:01.000Z');
   });
 
-  it('tags file edits with their absolute path', async () => {
+  it('tags file edits with their absolute path and their old and new text', async () => {
     const items = await parseConversation(await writeSession('-chat', 'files', lines(
       { type: 'user', cwd: '/Users/me/app', message: { content: 'edit it' } },
       { type: 'assistant', cwd: '/Users/me/app', message: { content: [
         { type: 'tool_use', id: 'e', name: 'Edit', input: { file_path: 'src/a.js', old_string: 'x', new_string: 'y' } },
-        { type: 'tool_use', id: 'w', name: 'Write', input: { file_path: '/tmp/b.md', content: 'hi' } },
+        { type: 'tool_use', id: 'w', name: 'Write', input: { file_path: '/tmp/b.md', content: 'x'.repeat(13000) } },
+        { type: 'tool_use', id: 'm', name: 'MultiEdit', input: { file_path: 'c.js', edits: [{ old_string: 'a', new_string: 'b' }, { old_string: 'c', new_string: 'd' }] } },
+        { type: 'tool_use', id: 'b', name: 'Bash', input: { command: 'ls' } },
       ] } },
     )));
+    const tools = items.filter((item) => item.kind === 'tool');
 
-    assert.deepEqual(items.filter((item) => item.kind === 'tool').map((item) => item.path), ['/Users/me/app/src/a.js', '/tmp/b.md']);
+    assert.deepEqual(tools.map((item) => item.path), ['/Users/me/app/src/a.js', '/tmp/b.md', '/Users/me/app/c.js', null]);
+    assert.deepEqual(tools[0].edits, [{ old: 'x', new: 'y' }]);
+    assert.equal(tools[1].edits[0].old, '');
+    assert.match(tools[1].edits[0].new, /1000 more characters$/);
+    assert.deepEqual(tools[2].edits, [{ old: 'a', new: 'b' }, { old: 'c', new: 'd' }]);
+    assert.equal(tools[3].edits, null);
   });
 
   it('clips very large tool output', async () => {

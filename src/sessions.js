@@ -346,6 +346,7 @@ function safeParse(line) {
 
 const TOOL_INPUT_LIMIT = 4000;
 const TOOL_RESULT_LIMIT = 6000;
+const EDIT_TEXT_LIMIT = 12000;
 const SUMMARY_LENGTH = 160;
 const conversationCache = new Map();
 
@@ -403,7 +404,7 @@ export async function parseConversation(file) {
           items.push({ kind: 'assistant', text: block.text, at });
         } else if (block.type === 'tool_use') {
           const filePath = FILE_TOOLS.has(block.name) ? block.input?.file_path ?? block.input?.notebook_path : null;
-          const tool = { kind: 'tool', id: block.id, name: block.name, summary: toolSummary(block.input), input: clip(JSON.stringify(block.input ?? {}, null, 2), TOOL_INPUT_LIMIT), result: null, isError: false, path: filePath ? resolve(cwd ?? '/', String(filePath)) : null, at };
+          const tool = { kind: 'tool', id: block.id, name: block.name, summary: toolSummary(block.input), input: clip(JSON.stringify(block.input ?? {}, null, 2), TOOL_INPUT_LIMIT), result: null, isError: false, path: filePath ? resolve(cwd ?? '/', String(filePath)) : null, edits: filePath ? fileEdits(block.name, block.input) : null, at };
           tools.set(block.id, tool);
           items.push(tool);
         }
@@ -446,6 +447,17 @@ export async function parseConversation(file) {
   conversationCache.set(file, { size: info.size, mtimeMs: info.mtimeMs, items });
 
   return items;
+}
+
+function fileEdits(name, input) {
+  const edits = name === 'MultiEdit' ? input?.edits ?? []
+    : name === 'Write' ? [{ new_string: input?.content }]
+      : [{ old_string: input?.old_string, new_string: input?.new_string ?? input?.new_source }];
+
+  return edits.map((change) => ({
+    old: clip(String(change?.old_string ?? ''), EDIT_TEXT_LIMIT),
+    new: clip(String(change?.new_string ?? ''), EDIT_TEXT_LIMIT),
+  }));
 }
 
 function blocks(content) {
