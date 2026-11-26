@@ -15,6 +15,7 @@ export async function parseSession(file) {
   let cwd = null;
   let gitBranch = null;
   let lastTimestamp = 0;
+  const prs = new Map();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -37,6 +38,9 @@ export async function parseSession(file) {
     if (event.type === 'ai-title' && event.aiTitle) {
       title = event.aiTitle;
     }
+    if (event.type === 'pr-link' && event.prUrl) {
+      prs.set(event.prUrl, { url: event.prUrl, number: event.prNumber ?? null, repository: event.prRepository ?? null });
+    }
   }
 
   const session = {
@@ -44,6 +48,7 @@ export async function parseSession(file) {
     title: title ?? 'Untitled session',
     cwd,
     gitBranch,
+    prs: [...prs.values()],
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
 
