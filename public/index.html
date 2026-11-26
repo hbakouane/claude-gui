@@ -989,6 +989,10 @@
       state.updatedAt = Date.now();
       render();
     }
+    if (sessionChanged && sessionId && chatBox()) {
+      chatBox().scrollTop = chatBox().scrollHeight;
+      updateJump();
+    }
     if (leftSession) {
       const row = content.querySelector(`[data-session="${CSS.escape(leftSession)}"]`);
       row?.focus({ preventScroll: true });
