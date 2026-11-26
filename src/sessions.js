@@ -7,12 +7,18 @@ import { createInterface } from 'node:readline';
 const MCP_TOOL = /^mcp__(.+?)__/;
 const TITLE_LENGTH = 80;
 
+const cache = new Map();
+
 export function projectsRoot(env = process.env) {
   return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
 }
 
 export async function parseSession(file) {
   const info = await stat(file);
+  const cached = cache.get(file);
+  if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs) {
+    return cached.session;
+  }
 
   let title = null;
   let firstPrompt = null;
@@ -73,6 +79,7 @@ export async function parseSession(file) {
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
+  cache.set(file, { size: info.size, mtimeMs: info.mtimeMs, session });
 
   return session;
 }

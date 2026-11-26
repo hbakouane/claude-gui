@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -93,6 +93,18 @@ describe('parseSession', () => {
 
     assert.equal(session.title, 'Fix login bug');
     assert.equal(session.lastActivity, '2026-11-20T11:31:00.000Z');
+  });
+
+  it('serves an unchanged file from the cache and re-reads a changed one', async () => {
+    const file = await writeSession('-cache', 'cached', fullSession);
+
+    const first = await parseSession(file);
+    assert.equal(await parseSession(file), first);
+
+    await appendFile(file, lines({ type: 'ai-title', aiTitle: 'Renamed' }));
+    const changed = await parseSession(file);
+    assert.notEqual(changed, first);
+    assert.equal(changed.title, 'Renamed');
   });
 });
 
