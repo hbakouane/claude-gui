@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { isAbsolute, join } from 'node:path';
 import { DEFAULT_PORT, expandHome, isValidPort, MIN_PORT, readConfig, resolveClaudeDir, writeConfig } from './config.js';
-import { DEFAULT_EDITOR, EDITORS } from './editor.js';
+import { DEFAULT_EDITOR, EDITORS, editorCommand, openEditor } from './editor.js';
 import { launch as spawnTerminal, terminalCommand } from './resume.js';
 import { findSession, listProjects, listRecent, listSessions, readConversation, searchSessions } from './sessions.js';
 
@@ -18,7 +18,7 @@ const MAX_PATH_LENGTH = 1000;
 const SETTING_KEYS = ['claudeDir', 'editor', 'openBrowser', 'port'];
 export const RESUME_HEADER = 'claude-sessions-dashboard';
 
-export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal }) {
+export function createServer({ root, claudeDir, source = 'default', configFile = null, env = process.env, editor = DEFAULT_EDITOR, terminal = 'terminal', platform = process.platform, launch = spawnTerminal, openFolder = openEditor }) {
   const settings = { root: root ?? join(claudeDir, 'projects'), claudeDir: claudeDir ?? null, source, editor: Object.hasOwn(EDITORS, editor) ? editor : DEFAULT_EDITOR };
 
   return createHttpServer(async (req, res) => {
@@ -47,6 +47,9 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
       }
       if (pathname === '/api/settings') {
         return await updateSettings(req, res, { settings, configFile, env });
+      }
+      if (pathname === '/api/open-editor') {
+        return await openInEditor(req, res, { root, editor: settings.editor, platform, open: openFolder });
       }
       if (pathname === '/api/resume') {
         return await resume(req, res, { root, terminal, platform, launch });
@@ -178,6 +181,36 @@ async function describe(settings, configFile, req) {
     defaultPort: DEFAULT_PORT,
     runningPort: req.socket.localPort,
   };
+}
+
+async function openInEditor(req, res, { root, editor, platform, open }) {
+  if (req.method !== 'POST') {
+    return send(res, 405, { error: 'Use POST' });
+  }
+  if (req.headers['x-requested-with'] !== RESUME_HEADER) {
+    return send(res, 400, { error: 'Missing X-Requested-With header' });
+  }
+  const body = await readJson(req);
+  const session = body && await findSession(root, String(body.projectId ?? ''), String(body.sessionId ?? ''));
+  if (!session) {
+    return send(res, 404, { error: 'Session not found' });
+  }
+  const dir = body.path == null ? session.cwd : String(body.path);
+  // Only the session's own folder and worktrees can be opened, never an arbitrary path from the request.
+  if (!dir || ![session.cwd, ...session.worktrees.map((worktree) => worktree.path)].includes(dir)) {
+    return send(res, 400, { error: 'That folder does not belong to this session' });
+  }
+  if (!existsSync(dir)) {
+    return send(res, 409, { error: 'That folder no longer exists' });
+  }
+  const [command, args] = editorCommand({ platform, editor, dir });
+  try {
+    await open(command, args);
+  } catch (error) {
+    return send(res, 409, { error: `Could not open ${EDITORS[editor].label}. Is it installed? (${error.message})` });
+  }
+
+  return send(res, 200, { opened: dir, editor });
 }
 
 async function readJson(req) {
