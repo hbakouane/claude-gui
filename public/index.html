@@ -427,7 +427,8 @@
     $('crumbs').innerHTML = state.projectId
       ? `<a href="#/">Projects</a><span class="sep">${icon('chevron', 14)}</span><span class="current">${esc(project ? baseName(project.path) : state.projectId)}</span>`
       : '<span class="current">Projects</span>';
-    search.placeholder = state.projectId ? 'Search title, branch, PR, ID, MCP…' : 'Search projects…';
+    search.placeholder = state.projectId ? 'Search sessions…' : 'Search projects…';
+    search.title = state.projectId ? 'Search by title, branch, PR, session ID or MCP server' : 'Search by project name or path';
     document.title = project ? `${baseName(project.path)} · Claude Sessions` : 'Claude Sessions';
     tickUpdated();
   }
