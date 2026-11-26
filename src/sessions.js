@@ -73,6 +73,7 @@ export async function parseSession(file) {
   let cwd = null;
   let gitBranch = null;
   let lastTimestamp = 0;
+  let turnOpen = false;
   const prs = new Map();
   const mcps = new Set();
   const worktrees = new Set();
@@ -138,6 +139,12 @@ export async function parseSession(file) {
         }
       }
     }
+    if (event.type === 'system' && event.subtype === 'turn_duration') {
+      turnOpen = false;
+    }
+    if (event.type === 'user' && !event.isMeta && !event.isSidechain) {
+      turnOpen = !/^\s*(<local-command|\[Request interrupted)/.test(promptText(event.message?.content, true) ?? '');
+    }
     if (firstPrompt === null && event.type === 'user' && !event.isMeta && !event.isSidechain) {
       firstPrompt = promptText(event.message?.content);
     }
@@ -152,6 +159,7 @@ export async function parseSession(file) {
     prs: [...prs.values()],
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     artifacts: [...artifacts.values()],
+    turnOpen,
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
   cache.set(file, { size: info.size, mtimeMs: info.mtimeMs, session });
@@ -246,13 +254,13 @@ function recordArtifact(artifacts, input, result) {
   });
 }
 
-function promptText(content) {
+function promptText(content, raw = false) {
   const text = typeof content === 'string'
     ? content
     : Array.isArray(content) ? content.find((block) => block?.type === 'text')?.text : null;
   const trimmed = text?.trim();
 
-  return trimmed && !trimmed.startsWith('<') ? trimmed : null;
+  return trimmed && (raw || !trimmed.startsWith('<')) ? trimmed : null;
 }
 
 function truncate(text) {

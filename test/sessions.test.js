@@ -31,6 +31,7 @@ const fullSession = lines(
   { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: 'WT=../app-fix && git worktree add -b fix/login "$WT" origin/main 2>&1 | tail -2' } }] }, cwd: '/Users/me/code/app' },
   { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'a1', name: 'Artifact', input: { file_path: '/tmp/x/report.html' } }] } },
   { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a1', content: 'Published /tmp/x/report.html at https://claude.ai/code/artifact/abc (Version 1, version id 1)' }] } },
+  { type: 'system', subtype: 'turn_duration' },
 );
 
 let root;
@@ -66,6 +67,7 @@ describe('parseSession', () => {
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       mcps: ['claude_ai_Linear', 'supabase'],
       artifacts: [{ url: 'https://claude.ai/code/artifact/abc', name: 'report', change: 'created', version: 1 }],
+      turnOpen: false,
       lastActivity: '2026-11-20T11:31:00.000Z',
     });
   });
@@ -129,7 +131,7 @@ describe('parseSession', () => {
   });
 });
 
-describe('worktrees and artifacts', () => {
+describe('worktrees, artifacts and running turns', () => {
   const bash = (command) => ({ type: 'assistant', cwd: '/repo/app', message: { content: [{ type: 'tool_use', id: command, name: 'Bash', input: { command } }] } });
   const artifact = (id, input) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Artifact', input }] } });
   const result = (id, content, isError = false) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } });
@@ -178,6 +180,16 @@ describe('worktrees and artifacts', () => {
       { url: 'https://claude.ai/code/artifact/plan', name: 'plan', change: 'created', version: 2 },
       { url: 'https://claude.ai/artifact/shared', name: 'shared-v2', change: 'updated', version: 4 },
     ]);
+  });
+
+  it('knows whether the last turn is still running', async () => {
+    const turnOpen = async (id, ...events) => (await parseSession(await writeSession('-turn', id, lines(...events)))).turnOpen;
+    const prompt = { type: 'user', message: { content: 'Do it' } };
+
+    assert.equal(await turnOpen('running', prompt, { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: { command: 'sleep 60' } }] } }), true);
+    assert.equal(await turnOpen('finished', prompt, { type: 'assistant', message: { content: [{ type: 'text', text: 'Done' }] } }, { type: 'system', subtype: 'turn_duration' }), false);
+    assert.equal(await turnOpen('interrupted', prompt, { type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } }), false);
+    assert.equal(await turnOpen('local-command', { type: 'user', message: { content: '<local-command-stdout>ok</local-command-stdout>' } }), false);
   });
 });
 
