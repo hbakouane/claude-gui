@@ -206,7 +206,7 @@ describe('archive through the server', () => {
 
   it('reports and saves the archive setting, and rejects values that are not booleans', async () => {
     const settings = (await call('GET', '/api/settings')).body;
-    assert.deepEqual([settings.archive, settings.archiveDir], [true, archive]);
+    assert.deepEqual([settings.archive, settings.archiveDir, settings.notifications], [true, archive, false]);
 
     assert.equal(settings.archiveDays, null);
     for (const archiveDays of [0, -3, 1.5, '30', 36501]) {
@@ -217,10 +217,11 @@ describe('archive through the server', () => {
     assert.equal((await call('POST', '/api/settings', { archiveDays: null })).body.archiveDays, null);
 
     assert.equal((await call('POST', '/api/settings', { archive: 'yes' })).status, 400);
+    assert.equal((await call('POST', '/api/settings', { notifications: 1 })).status, 400);
 
-    const off = await call('POST', '/api/settings', { archive: false });
-    assert.deepEqual([off.status, off.body.archive], [200, false]);
-    assert.deepEqual(JSON.parse(await readFile(configFile, 'utf8')), { archive: false });
+    const off = await call('POST', '/api/settings', { archive: false, notifications: true });
+    assert.deepEqual([off.status, off.body.archive, off.body.notifications], [200, false, true]);
+    assert.deepEqual(JSON.parse(await readFile(configFile, 'utf8')), { archive: false, notifications: true });
     assert.equal((await call('GET', '/api/projects/-tmp-x/sessions')).body.some((s) => s.archived), false);
   });
 

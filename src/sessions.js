@@ -24,6 +24,7 @@ const SKILL_LOAD = /^Base directory for this skill: (\S+)/;
 const COMMAND_NAME = /<command-name>\/?([^<\s]+)<\/command-name>/;
 const LIVE_SUFFIX = '.jsonl';
 const ARCHIVE_SUFFIX = '.jsonl.gz';
+const WAITING_TOOLS = { AskUserQuestion: 'question', ExitPlanMode: 'plan' };
 
 const cache = new Map();
 
@@ -83,6 +84,24 @@ export async function listRecent(root, hours, now = Date.now(), { archive = null
   return recent.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity)).slice(0, RECENT_LIMIT);
 }
 
+// Sessions written to in the last `withinMs`, keyed by project/session, for the notification watcher.
+export async function activeSessions(root, { withinMs = 30 * 60 * 1000, now = Date.now() } = {}) {
+  const active = new Map();
+  for (const projectId of await projectDirs(root)) {
+    for (const file of await filesIn(join(root, projectId), LIVE_SUFFIX)) {
+      if (now - file.mtimeMs > withinMs) {
+        continue;
+      }
+      const session = await parseSession(file.path).catch(() => null);
+      if (session) {
+        active.set(`${projectId}/${session.id}`, { projectId, sessionId: session.id, title: session.title, turnOpen: session.turnOpen, waitingFor: session.waitingFor, lastReply: session.lastReply });
+      }
+    }
+  }
+
+  return active;
+}
+
 export async function parseSession(file) {
   const info = await stat(file);
   const cached = cache.get(file);
@@ -99,6 +118,7 @@ export async function parseSession(file) {
   let gitBranch = null;
   let lastTimestamp = 0;
   let turnOpen = false;
+  const waiting = new Map();
   const prs = new Map();
   const mcps = new Set();
   const worktrees = new Set();
@@ -160,6 +180,9 @@ export async function parseSession(file) {
         if (block.name === 'Artifact') {
           artifactCalls.set(block.id, block.input ?? {});
         }
+        if (WAITING_TOOLS[block.name] && !event.isSidechain) {
+          waiting.set(block.id, { kind: WAITING_TOOLS[block.name], text: waitingText(block.name, block.input) });
+        }
         if (block.name === 'Skill' && block.input?.skill) {
           skillCalls.set(block.id, String(block.input.skill).replace(/^\//, ''));
         }
@@ -193,6 +216,9 @@ export async function parseSession(file) {
     }
     if (event.type === 'user' && Array.isArray(event.message?.content)) {
       for (const block of event.message.content) {
+        if (block?.type === 'tool_result') {
+          waiting.delete(block.tool_use_id);
+        }
         if (block?.type !== 'tool_result' || block.is_error) {
           continue;
         }
@@ -246,6 +272,7 @@ export async function parseSession(file) {
     lastPrompt,
     lastReply,
     turnOpen,
+    waitingFor: turnOpen && waiting.size ? [...waiting.values()].at(-1) : null,
     archived: file.endsWith(ARCHIVE_SUFFIX),
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
@@ -306,6 +333,15 @@ function readLines(file) {
   source.on('error', () => lines.close());
 
   return lines;
+}
+
+function waitingText(name, input) {
+  if (name === 'AskUserQuestion') {
+    const question = Array.isArray(input?.questions) ? input.questions[0]?.question : input?.question;
+    return typeof question === 'string' ? truncate(question, PREVIEW_LENGTH) : null;
+  }
+
+  return 'A plan is ready for your review';
 }
 
 async function firstCwd(files) {

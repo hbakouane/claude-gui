@@ -283,6 +283,8 @@
   .typing span:nth-child(2) { animation-delay: .15s; }
   .typing span:nth-child(3) { animation-delay: .3s; }
   .c-idle .working { color: var(--green); font-weight: 600; }
+  .c-idle .waiting { color: var(--amber); font-weight: 600; }
+  .pill.waiting { background: var(--amber-soft); color: var(--amber); }
   .chip-archived { color: var(--text-2); background: var(--hover); border-color: transparent; font-weight: 500; }
   .field-check + .field-help, .field-sub { margin-left: 25px; }
   .field-input:disabled { opacity: .55; }
@@ -489,6 +491,9 @@
     <p class="field-help" id="port-help"></p>
     <input class="field-input" id="port-input" type="number" min="1024" max="65535" step="1" inputmode="numeric">
     <label class="field-check"><input type="checkbox" id="open-browser"> Open the browser when the dashboard starts</label>
+    <div class="field-sep"></div>
+    <label class="field-check"><input type="checkbox" id="notifications-input"> Notify me when a session finishes or asks me something</label>
+    <p class="field-help" id="notifications-help"></p>
     <div class="field-sep"></div>
     <label class="field-check"><input type="checkbox" id="archive-input"> Keep a copy of every session</label>
     <p class="field-help" id="archive-help"></p>
@@ -779,7 +784,7 @@
         <div class="row" tabindex="0" role="button" data-nav data-key="recent:${esc(s.id)}" data-href="${esc(href)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
           <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta"><span class="chip chip-project" title="${esc(s.projectPath)}">${icon('folder', 12)}<span>${esc(baseName(s.projectPath))}</span></span>${branchChip(s)}${s.prs.map(prChip).join('')}</div>${lastLine(s)}</div></div>
           <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
-          <div class="c-idle">${isWorking(s) ? '<span class="working">Working…</span>' : `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`}</div>
+          <div class="c-idle">${idleCell(s, st)}</div>
           <div class="c-id">${resumeButton(s.projectId, s.id)}</div>
         </div>`;
     }).join('')}</div></section>`;
@@ -809,6 +814,15 @@
   }
 
   const isWorking = (s) => Boolean(s?.turnOpen) && Date.now() - Date.parse(s.lastActivity) < WORKING_MS;
+  const isWaiting = (s) => Boolean(s?.waitingFor) && isWorking(s);
+  const WAITING_LABEL = { question: 'Waiting for your answer', plan: 'Waiting for your approval' };
+
+  function idleCell(s, st) {
+    if (isWaiting(s)) return `<span class="waiting" title="${esc(s.waitingFor.text ?? WAITING_LABEL[s.waitingFor.kind])}">Needs you</span>`;
+    if (isWorking(s)) return '<span class="working">Working…</span>';
+    return `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`;
+  }
+
   function archivedChip(s) {
     return s.archived ? `<span class="chip chip-archived" title="Claude Code deleted this session. claude-gui kept a copy, so you can still read, search and resume it.">${icon('archive', 12)}<span>Archived</span></span>` : '';
   }
@@ -849,7 +863,7 @@
         <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div>${lastLine(s)}</div></div>
         <div class="c-mcp">${mcpChips(s.mcps, 2)}</div>
         <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
-        <div class="c-idle">${isWorking(s) ? '<span class="working">Working…</span>' : `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`}</div>
+        <div class="c-idle">${idleCell(s, st)}</div>
         <div class="c-id"><code title="${esc(s.id)}">${esc(s.id.slice(0, 8))}</code><button class="icon-btn sm" type="button" data-copy="${esc(s.id)}" data-label="Session ID" title="Copy session ID" aria-label="Copy session ID">${icon('copy', 14)}</button><button class="icon-btn sm" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}" title="Resume in a new terminal" aria-label="Resume in a new terminal">${icon('terminal', 14)}</button></div>
       </div>`;
   }
@@ -1119,7 +1133,8 @@
     closeTurn();
     if (isWorking(currentSession())) {
       const last = items.at(-1);
-      const doing = last?.kind === 'tool' && last.result === null ? `Running ${toolLabel(last.name)[0]}${last.summary ? ` · ${last.summary}` : ''}` : 'Thinking…';
+      const waitingFor = currentSession()?.waitingFor;
+      const doing = waitingFor ? `${WAITING_LABEL[waitingFor.kind]}${waitingFor.text && waitingFor.kind === 'question' ? `: ${waitingFor.text}` : ''}` : last?.kind === 'tool' && last.result === null ? `Running ${toolLabel(last.name)[0]}${last.summary ? ` · ${last.summary}` : ''}` : 'Thinking…';
       html += `<div class="msg-claude" aria-live="polite"><span class="claude-avatar">${icon('sparkles', 15)}</span><div class="turn"><div class="turn-head">Claude <span class="msg-time">working</span></div><div class="working-text"><span class="typing"><span></span><span></span><span></span></span><span>${esc(doing)}</span></div></div></div>`;
     }
     return html;
@@ -1218,7 +1233,7 @@
     return `
       <div class="session-head">
         <h1 title="${esc(s.title)}">${esc(s.title)}</h1>
-        <div class="s-meta">${archivedChip(s)}${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
+        <div class="s-meta">${archivedChip(s)}${isWaiting(s) ? `<span class="pill waiting" title="${esc(s.waitingFor.text ?? '')}"><span class="dot recent"></span>${WAITING_LABEL[s.waitingFor.kind]}</span>` : isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
       </div>
       <div class="session-layout">
         <section class="chat-card" aria-label="Conversation">${renderChat()}<button class="jump" type="button" data-action="latest" hidden>${icon('arrow', 14)} Latest</button></section>
@@ -1355,10 +1370,11 @@
   const editorSelect = $('editor-select');
   const portInput = $('port-input');
   const openBrowserInput = $('open-browser');
+  const notificationsInput = $('notifications-input');
   const archiveInput = $('archive-input');
   const archiveDaysInput = $('archive-days');
   archiveInput.addEventListener('change', () => { archiveDaysInput.disabled = !archiveInput.checked; });
-
+  const notificationsBlocked = () => !('Notification' in window) || Notification.permission === 'denied';
   const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
 
   function fillSettings(settings) {
@@ -1368,6 +1384,12 @@
     portInput.value = settings.port ?? '';
     portInput.placeholder = String(settings.defaultPort);
     openBrowserInput.checked = settings.openBrowser;
+    notificationsInput.checked = settings.notifications;
+    $('notifications-help').textContent = !('Notification' in window)
+      ? 'This browser doesn\'t support desktop notifications.'
+      : Notification.permission === 'denied'
+        ? 'Your browser is blocking notifications for this page. Allow them in the site settings to turn this on.'
+        : 'Desktop notifications while this dashboard is open in a browser tab, even in the background.';
     archiveInput.checked = settings.archive;
     archiveInput.disabled = !settings.archiveDir;
     archiveDaysInput.value = settings.archiveDays ?? '';
@@ -1399,6 +1421,7 @@
     if (claudeDirInput.value.trim() !== tilde(state.settings?.claudeDir ?? '')) changes.claudeDir = claudeDirInput.value;
     if (editorSelect.value !== state.settings?.editor) changes.editor = editorSelect.value;
     if (openBrowserInput.checked !== state.settings?.openBrowser) changes.openBrowser = openBrowserInput.checked;
+    if (notificationsInput.checked !== state.settings?.notifications) changes.notifications = notificationsInput.checked;
     if (!archiveInput.disabled && archiveInput.checked !== state.settings?.archive) changes.archive = archiveInput.checked;
     const archiveDays = archiveDaysInput.value.trim() === '' ? null : Number(archiveDaysInput.value);
     if (!archiveDaysInput.disabled && archiveDays !== (state.settings?.archiveDays ?? null)) changes.archiveDays = archiveDays;
@@ -1413,6 +1436,13 @@
     buttons.forEach((button) => { button.disabled = true; });
     settingsError.hidden = true;
     try {
+      // Asked while handling the Save click, which browsers require before they show the permission prompt.
+      if (changes.notifications === true && !notificationsBlocked() && Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') {
+        throw new Error('Notifications are blocked for this page. Allow them in your browser\'s site settings, then try again.');
+      }
+      if (changes.notifications === true && notificationsBlocked()) {
+        throw new Error('Notifications are blocked for this page. Allow them in your browser\'s site settings, then try again.');
+      }
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-requested-with': 'claude-gui' },
@@ -1423,6 +1453,7 @@
       const folderChanged = body.projectsDir !== state.settings?.projectsDir;
       state.settings = body;
       settingsDialog.close();
+      connectEvents();
       if (!folderChanged) {
         showToast('Settings saved');
         renderContent();
@@ -1454,9 +1485,43 @@
   });
   getJSON('/api/settings').then((settings) => {
     state.settings = settings;
+    connectEvents();
     if (state.sessionId) renderContent();
   }).catch(() => {});
 
+  /* ---------- Notifications ---------- */
+
+  const NOTIFY_TITLE = { finished: 'Claude finished', question: 'Claude has a question', plan: 'Plan ready for review' };
+  let events = null;
+
+  function connectEvents() {
+    const wanted = state.settings?.notifications && 'Notification' in window && Notification.permission === 'granted';
+    if (!wanted) {
+      events?.close();
+      events = null;
+      return;
+    }
+    if (events) return;
+    events = new EventSource('/api/events');
+    events.onmessage = (message) => {
+      let event;
+      try { event = JSON.parse(message.data); } catch { return; }
+      showNotification(event);
+      refresh();
+    };
+  }
+
+  function showNotification(event) {
+    // Skip it when you're already looking at that session.
+    if (document.visibilityState === 'visible' && document.hasFocus() && state.sessionId === event.sessionId) return;
+    // The tag lets the browser merge copies from several open dashboard tabs.
+    const notification = new Notification(`${NOTIFY_TITLE[event.type] ?? 'Claude Code'}: ${event.title}`, { body: event.detail ?? '', tag: `${event.sessionId}:${event.type}` });
+    notification.onclick = () => {
+      window.focus();
+      location.hash = `#/p/${encodeURIComponent(event.projectId)}/s/${encodeURIComponent(event.sessionId)}`;
+      notification.close();
+    };
+  }
 
   async function openInEditor(path, button) {
     button.disabled = true;

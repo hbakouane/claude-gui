@@ -73,6 +73,7 @@ describe('parseSession', () => {
       lastPrompt: 'Fix the login bug please',
       lastReply: null,
       turnOpen: false,
+      waitingFor: null,
       archived: false,
       lastActivity: '2026-11-20T11:31:00.000Z',
     });
