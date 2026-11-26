@@ -379,6 +379,7 @@ export async function parseConversation(file) {
   }
 
   const items = [];
+  let cwd = null;
   const tools = new Map();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
@@ -387,6 +388,9 @@ export async function parseConversation(file) {
       event = JSON.parse(line);
     } catch {
       continue;
+    }
+    if (event.cwd) {
+      cwd = event.cwd;
     }
     if (event.isSidechain || event.isMeta) {
       continue;
@@ -398,7 +402,8 @@ export async function parseConversation(file) {
         if (block.type === 'text' && block.text?.trim()) {
           items.push({ kind: 'assistant', text: block.text, at });
         } else if (block.type === 'tool_use') {
-          const tool = { kind: 'tool', id: block.id, name: block.name, summary: toolSummary(block.input), input: clip(JSON.stringify(block.input ?? {}, null, 2), TOOL_INPUT_LIMIT), result: null, isError: false, at };
+          const filePath = FILE_TOOLS.has(block.name) ? block.input?.file_path ?? block.input?.notebook_path : null;
+          const tool = { kind: 'tool', id: block.id, name: block.name, summary: toolSummary(block.input), input: clip(JSON.stringify(block.input ?? {}, null, 2), TOOL_INPUT_LIMIT), result: null, isError: false, path: filePath ? resolve(cwd ?? '/', String(filePath)) : null, at };
           tools.set(block.id, tool);
           items.push(tool);
         }

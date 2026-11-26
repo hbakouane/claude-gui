@@ -440,13 +440,25 @@ describe('parseConversation', () => {
       ['assistant', 'All done.'],
     ]);
     assert.deepEqual(
-      items.filter((item) => item.kind === 'tool').map(({ name, summary, result, isError }) => ({ name, summary, result, isError })),
+      items.filter((item) => item.kind === 'tool').map(({ name, summary, result, isError, path }) => ({ name, summary, result, isError, path })),
       [
-        { name: 'Bash', summary: 'Show working tree status', result: 'nothing to commit', isError: false },
-        { name: 'mcp__supabase__execute_sql', summary: 'select 1', result: 'permission denied', isError: true },
+        { name: 'Bash', summary: 'Show working tree status', result: 'nothing to commit', isError: false, path: null },
+        { name: 'mcp__supabase__execute_sql', summary: 'select 1', result: 'permission denied', isError: true, path: null },
       ],
     );
     assert.equal(items[0].at, '2026-11-20T10:00:01.000Z');
+  });
+
+  it('tags file edits with their absolute path', async () => {
+    const items = await parseConversation(await writeSession('-chat', 'files', lines(
+      { type: 'user', cwd: '/Users/me/app', message: { content: 'edit it' } },
+      { type: 'assistant', cwd: '/Users/me/app', message: { content: [
+        { type: 'tool_use', id: 'e', name: 'Edit', input: { file_path: 'src/a.js', old_string: 'x', new_string: 'y' } },
+        { type: 'tool_use', id: 'w', name: 'Write', input: { file_path: '/tmp/b.md', content: 'hi' } },
+      ] } },
+    )));
+
+    assert.deepEqual(items.filter((item) => item.kind === 'tool').map((item) => item.path), ['/Users/me/app/src/a.js', '/tmp/b.md']);
   });
 
   it('clips very large tool output', async () => {
