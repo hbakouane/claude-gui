@@ -27,6 +27,7 @@ const fullSession = lines(
   { type: 'pr-link', prUrl: 'https://github.com/acme/app/pull/7', prNumber: 7, prRepository: 'acme/app', timestamp: '2026-11-20T11:30:00.000Z' },
   { type: 'pr-link', prUrl: 'https://github.com/acme/app/pull/7', prNumber: 7, prRepository: 'acme/app', timestamp: '2026-11-20T11:31:00.000Z' },
   { type: 'ai-title', aiTitle: 'Fix login bug' },
+  { type: 'ai-title', aiTitle: 'verify-login-fix-prod' },
 );
 
 let root;
@@ -77,6 +78,16 @@ describe('parseSession', () => {
     assert.equal(isWorktree, false);
     assert.deepEqual(prs, []);
     assert.deepEqual(mcps, []);
+  });
+
+  it('uses the first task slug when the session only has slug titles', async () => {
+    const file = await writeSession('-titles', 'slugs', lines(
+      { type: 'user', message: { content: 'Do the thing' } },
+      { type: 'ai-title', aiTitle: 'build-portfolio-site' },
+      { type: 'ai-title', aiTitle: 'deploy-portfolio' },
+    ));
+
+    assert.equal((await parseSession(file)).title, 'build-portfolio-site');
   });
 
   it('uses a placeholder title and the file time when the session has neither', async () => {

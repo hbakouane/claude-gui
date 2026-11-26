@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
 const MCP_TOOL = /^mcp__(.+?)__/;
+const TASK_SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
 const TITLE_LENGTH = 80;
 const PARALLEL_FILES = 8;
 
@@ -57,6 +58,7 @@ export async function parseSession(file) {
   }
 
   let title = null;
+  let slugTitle = null;
   let firstPrompt = null;
   let cwd = null;
   let gitBranch = null;
@@ -84,7 +86,11 @@ export async function parseSession(file) {
       gitBranch = event.gitBranch;
     }
     if (event.type === 'ai-title' && event.aiTitle) {
-      title = event.aiTitle;
+      if (!TASK_SLUG.test(event.aiTitle)) {
+        title = event.aiTitle;
+      } else {
+        slugTitle ??= event.aiTitle;
+      }
     }
     if (event.type === 'pr-link' && event.prUrl) {
       prs.set(event.prUrl, { url: event.prUrl, number: event.prNumber ?? null, repository: event.prRepository ?? null });
@@ -107,7 +113,7 @@ export async function parseSession(file) {
 
   const session = {
     id: basename(file, '.jsonl'),
-    title: title ?? truncate(firstPrompt) ?? 'Untitled session',
+    title: title ?? slugTitle ?? truncate(firstPrompt) ?? 'Untitled session',
     cwd,
     gitBranch,
     isWorktree,
