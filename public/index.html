@@ -1528,7 +1528,7 @@
     showArchiveImpact(null);
     $('archive-help').innerHTML = settings.archiveDir
       ? `Claude Code deletes sessions after 30 days by default. claude-gui keeps a compressed copy in <code>${esc(tilde(settings.archiveDir))}</code>, readable only by you, so you can still search and resume them.`
-      : 'Not available in this mode.';
+      : 'archiveDir' in settings ? 'Not available in this mode.' : 'Restart claude-gui to use this: the running version is older than this page.';
     const nextPort = settings.port ?? settings.defaultPort;
     $('port-help').textContent = `Leave empty to use ${settings.defaultPort}. Changes apply the next time you start the dashboard${nextPort === settings.runningPort ? '' : `; it's running on ${settings.runningPort} right now`}.`;
     const note = settings.source === 'flag' ? ' Saving here replaces it until you start the dashboard with the flag again.' : '';
