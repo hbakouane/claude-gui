@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
+import { createServer } from '../src/server.js';
 import { listProjects, listSessions, parseSession, projectsRoot } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
@@ -161,5 +163,42 @@ describe('projectsRoot', () => {
   it('respects CLAUDE_CONFIG_DIR', () => {
     assert.equal(projectsRoot({ CLAUDE_CONFIG_DIR: '/custom' }), '/custom/projects');
     assert.ok(projectsRoot({}).endsWith('/.claude/projects'));
+  });
+});
+
+describe('server', () => {
+  let server;
+  let port;
+
+  before(async () => {
+    await writeSession(PROJECT, SESSION_ID, fullSession);
+    server = createServer({ root });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    port = server.address().port;
+  });
+
+  after(() => new Promise((resolve) => server.close(resolve)));
+
+  const get = (path, host = `127.0.0.1:${port}`) => new Promise((resolve, reject) => {
+    request({ host: '127.0.0.1', port, path, headers: { host } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], body }));
+    }).on('error', reject).end();
+  });
+
+  it('serves projects and their sessions', async () => {
+    const projects = JSON.parse((await get('/api/projects')).body);
+    assert.ok(projects.some((project) => project.id === PROJECT && project.path === '/Users/me/code/app'));
+
+    const sessions = JSON.parse((await get(`/api/projects/${encodeURIComponent(PROJECT)}/sessions`)).body);
+    assert.equal(sessions[0].id, SESSION_ID);
+  });
+
+  it('answers 404 for unknown projects, traversal attempts and unknown routes', async () => {
+    assert.equal((await get('/api/projects/nope/sessions')).status, 404);
+    assert.equal((await get('/api/projects/..%2F..%2Fetc/sessions')).status, 404);
+    assert.equal((await get('/api/projects/%E0%A4%A/sessions')).status, 404);
+    assert.equal((await get('/secrets')).status, 404);
   });
 });
