@@ -201,4 +201,10 @@ describe('server', () => {
     assert.equal((await get('/api/projects/%E0%A4%A/sessions')).status, 404);
     assert.equal((await get('/secrets')).status, 404);
   });
+
+  it('accepts localhost and rejects other Host headers', async () => {
+    assert.equal((await get('/api/projects', `localhost:${port}`)).status, 200);
+    assert.equal((await get('/api/projects', 'evil.example.com')).status, 403);
+    assert.equal((await get('/api/projects', `evil.example.com:${port}`)).status, 403);
+  });
 });

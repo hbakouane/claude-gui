@@ -3,10 +3,16 @@ import { createServer as createHttpServer } from 'node:http';
 import { listProjects, listSessions } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const SESSIONS_ROUTE = /^\/api\/projects\/([^/]+)\/sessions$/;
 
 export function createServer({ root }) {
   return createHttpServer(async (req, res) => {
+    // Session files are private; rejecting foreign Host headers blocks DNS-rebinding reads from other sites.
+    if (!LOCAL_HOSTS.has((req.headers.host ?? '').replace(/:\d+$/, ''))) {
+      return send(res, 403, { error: 'Forbidden' });
+    }
+
     try {
       const { pathname } = new URL(req.url, 'http://localhost');
       if (pathname === '/') {
