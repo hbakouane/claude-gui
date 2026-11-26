@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createServer } from '../src/server.js';
-import { listProjects, listSessions, parseConversation, parseSession, projectsRoot, readConversation } from '../src/sessions.js';
+import { listProjects, listRecent, listSessions, parseConversation, parseSession, projectsRoot, readConversation } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
 const PROJECT = '-Users-me-code-app';
@@ -279,6 +279,32 @@ describe('listSessions', () => {
   });
 });
 
+describe('listRecent', () => {
+  it('lists sessions from every project active within the window, newest first', async () => {
+    const recentRoot = await mkdtemp(join(tmpdir(), 'csd-recent-'));
+    const previousRoot = root;
+    root = recentRoot;
+    try {
+      const now = Date.parse('2026-11-26T12:00:00.000Z');
+      const at = (hoursAgo) => new Date(now - hoursAgo * 3600000).toISOString();
+      await writeSession('-Users-me-api', 'api-new', lines({ type: 'user', cwd: '/Users/me/api', message: { content: 'a' }, timestamp: at(1) }));
+      await writeSession('-Users-me-api', 'api-old', lines({ type: 'user', cwd: '/Users/me/api', message: { content: 'b' }, timestamp: at(30) }));
+      await writeSession('-Users-me-web', 'web-new', lines({ type: 'user', cwd: '/Users/me/web', message: { content: 'c' }, timestamp: at(3) }));
+
+      const recent = await listRecent(recentRoot, 24, now);
+
+      assert.deepEqual(recent.map(({ id, projectId, projectPath }) => ({ id, projectId, projectPath })), [
+        { id: 'api-new', projectId: '-Users-me-api', projectPath: '/Users/me/api' },
+        { id: 'web-new', projectId: '-Users-me-web', projectPath: '/Users/me/web' },
+      ]);
+      assert.equal((await listRecent(recentRoot, 48, now)).length, 3);
+    } finally {
+      root = previousRoot;
+      await rm(recentRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('projectsRoot', () => {
   it('respects CLAUDE_CONFIG_DIR', () => {
     assert.equal(projectsRoot({ CLAUDE_CONFIG_DIR: '/custom' }), '/custom/projects');
@@ -327,6 +353,13 @@ describe('server', () => {
     assert.equal((await get('/api/projects/..%2F..%2Fetc/sessions')).status, 404);
     assert.equal((await get('/api/projects/%E0%A4%A/sessions')).status, 404);
     assert.equal((await get('/secrets')).status, 404);
+  });
+
+  it('serves recently active sessions and clamps the window', async () => {
+    const response = await get('/api/recent?hours=99999');
+    assert.equal(response.status, 200);
+    assert.ok(Array.isArray(JSON.parse(response.body)));
+    assert.equal((await get('/api/recent?hours=abc')).status, 200);
   });
 
   it('serves a session conversation and 404s unknown sessions', async () => {

@@ -10,6 +10,7 @@ const TASK_SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
 const TITLE_LENGTH = 80;
 const PREVIEW_LENGTH = 200;
 const PARALLEL_FILES = 8;
+const RECENT_LIMIT = 50;
 const WORKTREE_ADD = /(?:^|[;&|(\n]|\$\()\s*git\s+(?:-C\s+\S+\s+)?worktree\s+add\b([^;&|\n]*)/g;
 const SHELL_ASSIGNMENT = /(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_]\w*)=("[^"]*"|'[^']*'|[^\s;&|)]+)/g;
 const PLAIN_PATH = /^[\w@%+=:,./~-]+$/;
@@ -59,6 +60,20 @@ export async function listSessions(root, id) {
   }
 
   return sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+}
+
+export async function listRecent(root, hours, now = Date.now()) {
+  const since = new Date(now - hours * 3600000).toISOString();
+  const recent = [];
+  for (const project of (await listProjects(root)).filter((p) => p.lastActivity >= since)) {
+    for (const session of (await listSessions(root, project.id)) ?? []) {
+      if (session.lastActivity >= since) {
+        recent.push({ ...session, projectId: project.id, projectPath: project.path });
+      }
+    }
+  }
+
+  return recent.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity)).slice(0, RECENT_LIMIT);
 }
 
 export async function parseSession(file) {

@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
-import { listProjects, listSessions, readConversation } from './sessions.js';
+import { listProjects, listRecent, listSessions, readConversation } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const SESSIONS_ROUTE = /^\/api\/projects\/([^/]+)\/sessions$/;
 const MESSAGES_ROUTE = /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/messages$/;
+const MAX_RECENT_HOURS = 168;
 
 export function createServer({ root }) {
   return createHttpServer(async (req, res) => {
@@ -15,13 +16,18 @@ export function createServer({ root }) {
     }
 
     try {
-      const { pathname } = new URL(req.url, 'http://localhost');
+      const url = new URL(req.url, 'http://localhost');
+      const { pathname } = url;
       if (pathname === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(await readFile(INDEX));
       }
       if (pathname === '/api/projects') {
         return send(res, 200, await listProjects(root));
+      }
+      if (pathname === '/api/recent') {
+        const hours = Math.min(MAX_RECENT_HOURS, Math.max(1, Number(url.searchParams.get('hours')) || 24));
+        return send(res, 200, await listRecent(root, hours));
       }
       const messagesMatch = MESSAGES_ROUTE.exec(pathname);
       if (messagesMatch) {
