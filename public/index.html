@@ -302,6 +302,15 @@
   .notify-prompt[hidden] { display: none; }
   .notify-prompt .btn { margin-top: 0; white-space: nowrap; }
   .field-input:disabled { opacity: .55; }
+  .danger-zone { display: grid; gap: 8px; margin-top: 6px; padding: 14px; border: 1px solid rgba(220, 38, 38, .4); border-radius: 10px; background: rgba(220, 38, 38, .05); }
+  .danger-zone .field-input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
+  .danger-title { display: flex; align-items: center; gap: 6px; color: #dc2626; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .danger-note { margin: 0; color: #dc2626; font-size: 13px; font-weight: 600; line-height: 1.5; }
+  .danger-note.safe { color: var(--text-3); font-weight: 500; }
+  .danger-confirm { display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: rgba(220, 38, 38, .1); }
+  .danger-confirm[hidden] { display: none; }
+  .danger-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .danger-actions .btn { margin-top: 0; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
   .compact-note > summary { padding: 10px 14px; cursor: pointer; font-weight: 550; }
@@ -392,6 +401,8 @@
   .settings-actions .btn { margin-top: 0; }
   .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
   .btn:disabled { opacity: .6; cursor: default; }
   .btn[hidden] { display: none; }
   .toast { position: fixed; left: 50%; bottom: 28px; z-index: 40; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 550; box-shadow: var(--shadow); opacity: 0; transform: translate(-50%, 10px); transition: opacity .18s, transform .18s; pointer-events: none; }
@@ -515,9 +526,17 @@
     <div class="field-sep"></div>
     <label class="field-check"><input type="checkbox" id="archive-input"> Keep a copy of every session</label>
     <p class="field-help" id="archive-help"></p>
-    <label class="field-label field-sub" for="archive-days">Keep copies for</label>
-    <p class="field-help field-sub" id="archive-days-help">Days after a session's last activity. Older copies are deleted. Leave empty to keep them forever.</p>
-    <input class="field-input field-sub" id="archive-days" type="number" min="1" max="36500" step="1" inputmode="numeric" placeholder="Forever" aria-describedby="archive-days-help">
+    <div class="danger-zone field-sub" role="group" aria-labelledby="danger-title">
+      <div class="danger-title" id="danger-title"><span data-icon="alert" data-size="13"></span> Danger zone</div>
+      <label class="field-label" for="archive-days">Keep copies for (days)</label>
+      <p class="field-help" id="archive-days-help">Copies of sessions inactive for longer are permanently deleted when you save. For a session Claude Code already deleted, its copy is the last one left. Leave empty to keep copies forever.</p>
+      <input class="field-input" id="archive-days" type="number" min="1" max="36500" step="1" inputmode="numeric" placeholder="Forever" aria-describedby="archive-days-help archive-days-impact">
+      <p class="danger-note safe" id="archive-days-impact" aria-live="polite"></p>
+      <div class="danger-confirm" id="archive-confirm" role="alert" hidden>
+        <p class="danger-note" id="archive-confirm-text"></p>
+        <div class="danger-actions"><button class="btn" type="button" id="archive-confirm-cancel">Cancel</button><button class="btn btn-danger" type="button" id="archive-confirm-ok"></button></div>
+      </div>
+    </div>
     <div class="settings-actions">
       <button class="btn" type="button" id="settings-reset">Use default folder</button>
       <span class="spacer"></span>
@@ -1437,6 +1456,46 @@
   const archiveInput = $('archive-input');
   const archiveDaysInput = $('archive-days');
   archiveInput.addEventListener('change', () => { archiveDaysInput.disabled = !archiveInput.checked; });
+
+  /* Retention is the one setting that deletes data, so it says what Save would delete and asks first. */
+  const archiveImpact = $('archive-days-impact');
+  const archiveConfirm = $('archive-confirm');
+  let deleteConfirmed = false;
+  let impactTimer;
+  const daysValue = () => (archiveDaysInput.value.trim() === '' ? null : Number(archiveDaysInput.value));
+  const fetchImpact = (days) => getJSON(`/api/archive-preview?days=${days}`);
+  // "3 of them are", "1 of them is", "All of them are", "It is": the part of `expired` that `lastCopies` covers.
+  const someOf = (part, whole, one, many) => (part === whole ? (whole === 1 ? `It ${one}` : `All of them ${many}`) : `${part} of them ${part === 1 ? one : many}`);
+  const impactSentence = ({ expired, lastCopies }) => `Saving permanently deletes ${plural(expired, 'copy', 'copies')}.${lastCopies ? ` ${someOf(lastCopies, expired, 'is the last copy', 'are the last copies')} left, because Claude Code already deleted ${lastCopies === 1 ? 'that session' : 'those sessions'}.` : ''}`;
+
+  function showArchiveImpact(impact) {
+    archiveImpact.className = `danger-note${impact?.expired ? '' : ' safe'}`;
+    archiveImpact.textContent = !impact ? '' : impact.expired ? impactSentence(impact) : 'No copies are old enough to be deleted.';
+  }
+
+  function hideDeleteConfirm() {
+    archiveConfirm.hidden = true;
+    deleteConfirmed = false;
+  }
+
+  archiveDaysInput.addEventListener('input', () => {
+    hideDeleteConfirm();
+    clearTimeout(impactTimer);
+    const days = daysValue();
+    if (!Number.isInteger(days) || days < 1 || !state.settings?.archiveDir) return showArchiveImpact(null);
+    impactTimer = setTimeout(async () => {
+      const impact = await fetchImpact(days).catch(() => null);
+      if (daysValue() === days) showArchiveImpact(impact);
+    }, 250);
+  });
+  $('archive-confirm-cancel').addEventListener('click', () => {
+    hideDeleteConfirm();
+    archiveDaysInput.focus();
+  });
+  $('archive-confirm-ok').addEventListener('click', () => {
+    deleteConfirmed = true;
+    saveSettings(settingsChanges());
+  });
   const notificationsBlocked = () => !('Notification' in window) || Notification.permission === 'denied';
   const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
   const terminalSelect = $('terminal-select');
@@ -1465,6 +1524,8 @@
     archiveInput.disabled = !settings.archiveDir;
     archiveDaysInput.value = settings.archiveDays ?? '';
     archiveDaysInput.disabled = !settings.archive;
+    hideDeleteConfirm();
+    showArchiveImpact(null);
     $('archive-help').innerHTML = settings.archiveDir
       ? `Claude Code deletes sessions after 30 days by default. claude-gui keeps a compressed copy in <code>${esc(tilde(settings.archiveDir))}</code>, readable only by you, so you can still search and resume them.`
       : 'Not available in this mode.';
@@ -1504,6 +1565,18 @@
 
   async function saveSettings(changes) {
     if (!Object.keys(changes).length) return settingsDialog.close();
+    if (Number.isInteger(changes.archiveDays) && !deleteConfirmed) {
+      const impact = await fetchImpact(changes.archiveDays).catch(() => null);
+      if (impact?.expired) {
+        showArchiveImpact(impact);
+        $('archive-confirm-text').textContent = `Delete ${plural(impact.expired, 'archived session', 'archived sessions')} for good? ${impact.lastCopies ? `${someOf(impact.lastCopies, impact.expired, 'exists', 'exist')} nowhere else. ` : ''}This can't be undone.`;
+        $('archive-confirm-ok').textContent = `Delete ${plural(impact.expired, 'copy', 'copies')} and save`;
+        archiveConfirm.hidden = false;
+        archiveConfirm.scrollIntoView({ block: 'nearest' });
+        return $('archive-confirm-ok').focus();
+      }
+    }
+    deleteConfirmed = false;
     const buttons = settingsDialog.querySelectorAll('.settings-actions .btn');
     buttons.forEach((button) => { button.disabled = true; });
     settingsError.hidden = true;

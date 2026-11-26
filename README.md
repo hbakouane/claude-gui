@@ -120,7 +120,7 @@ Claude Code deletes a session's transcript when it hasn't been used for 30 days 
 - Copies are gzip-compressed, in `~/.local/share/claude-gui/archive` (or under `$XDG_DATA_HOME`), and only your user can read them.
 - A session Claude Code deleted still shows up, marked **Archived**. You can read and search it like any other.
 - **Restore and resume** puts the transcript back in Claude Code's folder, then resumes it. It never overwrites a transcript that's already there.
-- Set **Keep copies for** in Settings to delete copies after a number of days, or turn archiving off.
+- Set **Keep copies for** in Settings to delete copies after a number of days, or turn archiving off. Since this deletes data, Settings shows it as a danger zone: it tells you how many copies Save would delete, and how many of them are the last copy left, then asks you to confirm.
 
 ### Keyboard shortcuts
 

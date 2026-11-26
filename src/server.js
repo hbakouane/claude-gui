@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { isAbsolute, join } from 'node:path';
-import { isValidKeepDays, MAX_KEEP_DAYS, restoreSession, SYNC_INTERVAL_MS, syncArchive } from './archive.js';
+import { isValidKeepDays, MAX_KEEP_DAYS, previewPrune, restoreSession, SYNC_INTERVAL_MS, syncArchive } from './archive.js';
 import { DEFAULT_PORT, expandHome, isValidPort, MIN_PORT, readConfig, resolveClaudeDir, writeConfig } from './config.js';
 import { DEFAULT_EDITOR, EDITORS, editorCommand, openEditor } from './editor.js';
 import { createNotifier } from './notify.js';
@@ -55,6 +55,15 @@ export function createServer({ root, claudeDir, source = 'default', configFile =
         return filters.error
           ? send(res, 400, { error: filters.error })
           : send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH), { ...filters, ...archived }));
+      }
+      if (pathname === '/api/archive-preview') {
+        const days = Number(url.searchParams.get('days'));
+        if (!settings.archiveDir) {
+          return send(res, 409, { error: 'Archiving isn\'t available in this mode' });
+        }
+        return isValidKeepDays(days)
+          ? send(res, 200, await previewPrune(root, settings.archiveDir, days))
+          : send(res, 400, { error: `days must be a whole number between 1 and ${MAX_KEEP_DAYS}` });
       }
       if (pathname === '/api/events') {
         return streamEvents(req, res, notifier);

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { archivePath, restoreSession, syncArchive } from '../src/archive.js';
+import { archivePath, previewPrune, restoreSession, syncArchive } from '../src/archive.js';
 import { createServer, RESUME_HEADER } from '../src/server.js';
 import { listProjects, listSessions, readConversation, searchSessions } from '../src/sessions.js';
 
@@ -74,6 +74,24 @@ describe('syncArchive', () => {
 
   it('does nothing when the Claude folder is missing', async () => {
     assert.deepEqual(await syncArchive(join(scratch, 'missing'), archive), { copied: 0, removed: 0 });
+  });
+});
+
+describe('previewPrune', () => {
+  it('counts the copies a retention would delete, and which are the last copy left, without deleting them', async () => {
+    const DAY = 24 * HOUR;
+    const root = join(scratch, 'preview', 'projects');
+    const archive = join(scratch, 'preview', 'archive');
+    await write(join(root, '-p', 'still-live.jsonl'), 'live', 20 * DAY);
+    await write(join(archive, '-p', 'still-live.jsonl.gz'), 'copy', 20 * DAY);
+    await write(join(archive, '-p', 'only-copy.jsonl.gz'), 'copy', 60 * DAY);
+    await write(join(archive, '-p', 'recent.jsonl.gz'), 'copy', 2 * DAY);
+
+    assert.deepEqual(await previewPrune(root, archive, 10), { expired: 2, lastCopies: 1 });
+    assert.deepEqual(await previewPrune(root, archive, 30), { expired: 1, lastCopies: 1 });
+    assert.deepEqual(await previewPrune(root, archive, 90), { expired: 0, lastCopies: 0 });
+    assert.ok(await stat(join(archive, '-p', 'only-copy.jsonl.gz')));
+    assert.deepEqual(await previewPrune(root, join(scratch, 'nothing'), 10), { expired: 0, lastCopies: 0 });
   });
 });
 
@@ -210,6 +228,9 @@ describe('archive through the server', () => {
     assert.deepEqual([settings.archive, settings.archiveDir, settings.notifications], [true, archive, true]);
 
     assert.equal(settings.archiveDays, null);
+    assert.deepEqual((await call('GET', '/api/archive-preview?days=1')).body, { expired: 0, lastCopies: 0 });
+    assert.equal((await call('GET', '/api/archive-preview?days=0')).status, 400);
+    assert.equal((await call('GET', '/api/archive-preview?days=abc')).status, 400);
     for (const archiveDays of [0, -3, 1.5, '30', 36501]) {
       assert.equal((await call('POST', '/api/settings', { archiveDays })).status, 400, String(archiveDays));
     }

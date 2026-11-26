@@ -53,6 +53,28 @@ export async function syncArchive(root, archive, { now = Date.now(), settleMs = 
   return { copied, removed: keepDays === null ? 0 : await pruneArchive(archive, expired) };
 }
 
+// What a retention of `keepDays` would delete, without deleting anything: how many copies, and how many of those are
+// the last copy left because Claude Code already deleted the session.
+export async function previewPrune(root, archive, keepDays, now = Date.now()) {
+  let expired = 0;
+  let lastCopies = 0;
+  const projects = await readdir(archive, { withFileTypes: true }).catch(() => []);
+  for (const project of projects.filter((entry) => entry.isDirectory())) {
+    const dir = join(archive, project.name);
+    for (const name of (await readdir(dir).catch(() => [])).filter((n) => n.endsWith('.jsonl.gz'))) {
+      const info = await stat(join(dir, name)).catch(() => null);
+      if (info && now - info.mtimeMs > keepDays * DAY_MS) {
+        expired++;
+        if (!(await stat(join(root, project.name, name.slice(0, -'.gz'.length))).catch(() => null))) {
+          lastCopies++;
+        }
+      }
+    }
+  }
+
+  return { expired, lastCopies };
+}
+
 // A copy's modification time is its session's last activity, so expiry needs no reading or decompressing.
 async function pruneArchive(archive, expired) {
   let removed = 0;
