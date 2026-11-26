@@ -130,6 +130,10 @@
   .s-main { min-width: 0; flex: 1; }
   .s-title { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .s-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-width: 0; }
+  .s-last { display: flex; gap: 14px; margin-top: 6px; font-size: 12.5px; color: var(--text-3); }
+  .s-last > span { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-last > span:nth-child(2) { flex-grow: 1.6; }
+  .s-last b { color: var(--text-2); font-weight: 600; }
   .c-mcp { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
   .c-time { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .c-idle { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
@@ -491,7 +495,7 @@
     const haystack = text.toLowerCase();
     return query.toLowerCase().split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
   }
-  const sessionText = (s) => [s.title, s.gitBranch, s.id, s.cwd, ...s.prs.map((pr) => `${pr.repository} #${pr.number} ${pr.url}`), ...s.mcps.map(mcpName), ...s.worktrees.map((w) => w.path), ...s.artifacts.map((a) => a.name)].join(' ');
+  const sessionText = (s) => [s.title, s.gitBranch, s.id, s.cwd, ...s.prs.map((pr) => `${pr.repository} #${pr.number} ${pr.url}`), ...s.mcps.map(mcpName), ...s.worktrees.map((w) => w.path), ...s.artifacts.map((a) => a.name), s.lastPrompt, s.lastReply].join(' ');
   const projectText = (p) => `${p.path} ${baseName(p.path)}`;
 
   const currentProject = () => state.projects?.find((p) => p.id === state.projectId);
@@ -601,13 +605,18 @@
     return `<span class="chip chip-artifact" title="${esc(s.artifacts.map((a) => a.name).join('\n'))}">${icon('artifact', 12)}<span>${plural(s.artifacts.length, 'artifact')}</span></span>`;
   }
 
+  function lastLine(s) {
+    const parts = [['You', s.lastPrompt], ['Claude', s.lastReply]].filter(([, text]) => text);
+    return parts.length ? `<div class="s-last">${parts.map(([who, text]) => `<span title="${esc(`${who}: ${text}`)}"><b>${who}:</b> ${esc(text)}</span>`).join('')}</div>` : '';
+  }
+
   function sessionRow(s, project) {
     const st = status(s.lastActivity);
     const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
     const meta = branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + folder;
     return `
       <div class="row" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
-        <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div></div></div>
+        <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div>${lastLine(s)}</div></div>
         <div class="c-mcp">${mcpChips(s.mcps, 2)}</div>
         <div class="c-time" title="${esc(fullDate(s.lastActivity))}">${esc(shortDate(s.lastActivity))}</div>
         <div class="c-idle">${isWorking(s) ? '<span class="working">Working…</span>' : `<span class="${st}" data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span>`}</div>
