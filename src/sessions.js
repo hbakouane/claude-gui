@@ -17,7 +17,12 @@ export async function parseSession(file) {
   let lastTimestamp = 0;
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
-    const event = JSON.parse(line);
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
 
     const timestamp = Date.parse(event.timestamp);
     if (timestamp > lastTimestamp) {

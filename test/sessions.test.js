@@ -65,6 +65,15 @@ describe('parseSession', () => {
     assert.equal(session.title, 'Untitled session');
     assert.ok(!Number.isNaN(Date.parse(session.lastActivity)));
   });
+
+  it('ignores a half-written last line left by a crash', async () => {
+    const file = await writeSession('-crash', 'crashed', `${fullSession}{"type":"assistant","message":{"content":[{"ty`);
+
+    const session = await parseSession(file);
+
+    assert.equal(session.title, 'Fix login bug');
+    assert.equal(session.lastActivity, '2026-11-20T11:31:00.000Z');
+  });
 });
 
 describe('projectsRoot', () => {
