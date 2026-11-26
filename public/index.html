@@ -209,8 +209,13 @@
   /* Session page */
   .session-head { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 14px; }
   .session-head h1 { flex: 0 1 auto; min-width: 120px; max-width: 50%; margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .session-head .s-meta { flex: 1 1 0; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .session-head .s-meta { flex: 1 1 0; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; overflow: hidden; }
   .session-head .s-meta > * { flex: none; }
+  .session-head .s-meta > .chip-branch { flex: 0 1 auto; min-width: 110px; max-width: 300px; }
+  .session-head .s-meta > [hidden] { display: none; }
+  .session-head .s-meta.expanded { flex-wrap: wrap; overflow: visible; }
+  .chip-more { cursor: pointer; font-weight: 600; color: var(--text); background: var(--panel); }
+  .chip-more:hover { border-color: var(--accent); }
   .content.is-session { display: flex; flex-direction: column; height: calc(100vh - 60px); padding-bottom: 24px; }
   .session-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 28px; }
   .session-aside { display: flex; flex-direction: column; gap: 24px; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
@@ -750,11 +755,31 @@
       </div>`;
   }
 
+  function fitHeaderChips() {
+    const meta = content.querySelector('.session-head .s-meta');
+    if (!meta || meta.classList.contains('expanded')) return;
+    meta.querySelector('.chip-more')?.remove();
+    const chips = [...meta.children];
+    chips.forEach((chip) => { chip.hidden = false; });
+    if (meta.scrollWidth <= meta.clientWidth) return;
+    const more = Object.assign(document.createElement('button'), { type: 'button', className: 'chip chip-more' });
+    more.dataset.action = 'expand-chips';
+    meta.append(more);
+    const hidden = [];
+    for (let i = chips.length - 1; i > 0 && meta.scrollWidth > meta.clientWidth; i--) {
+      chips[i].hidden = true;
+      hidden.unshift(chips[i]);
+      more.textContent = `+${hidden.length} more`;
+    }
+    more.title = `${hidden.map((chip) => chip.textContent.trim()).join('\n')}\n\nClick to show all`;
+  }
+
   function renderContent() {
     const focusedKey = content.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     const sessionPage = Boolean(state.sessionId && !state.sessionsError);
     content.classList.toggle('is-session', sessionPage);
     content.innerHTML = sessionPage ? renderSession() : state.projectId ? renderProject() : renderOverview();
+    fitHeaderChips();
     updateJump();
     if (focusedKey) {
       [...content.querySelectorAll('[data-nav]')].find((el) => el.dataset.key === focusedKey)?.focus({ preventScroll: true });
@@ -1246,6 +1271,12 @@
     }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'retry') return refresh();
+    if (action === 'expand-chips') {
+      const meta = event.target.closest('.s-meta');
+      meta.classList.add('expanded');
+      meta.querySelectorAll('[hidden]').forEach((chip) => { chip.hidden = false; });
+      return event.target.closest('.chip-more').remove();
+    }
     if (action === 'latest') return chatBox()?.scrollTo({ top: chatBox().scrollHeight, behavior: 'smooth' });
     if (action === 'clear') {
       search.value = '';
@@ -1277,6 +1308,11 @@
     try { localStorage.setItem('showTools', String(state.showTools)); } catch {}
     content.querySelector('.chat')?.classList.toggle('hide-tools', !state.showTools);
     updateJump();
+  });
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitHeaderChips, 100);
   });
   $('backdrop').addEventListener('click', () => document.body.classList.remove('nav-open'));
   $('menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
