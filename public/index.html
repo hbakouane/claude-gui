@@ -283,6 +283,9 @@
   .typing span:nth-child(2) { animation-delay: .15s; }
   .typing span:nth-child(3) { animation-delay: .3s; }
   .c-idle .working { color: var(--green); font-weight: 600; }
+  .chip-archived { color: var(--text-2); background: var(--hover); border-color: transparent; font-weight: 500; }
+  .field-check + .field-help, .field-sub { margin-left: 25px; }
+  .field-input:disabled { opacity: .55; }
   .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; max-width: 90%; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--subtle); font-size: 12px; color: var(--text-2); }
   .compact-note { border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-2); }
   .compact-note > summary { padding: 10px 14px; cursor: pointer; font-weight: 550; }
@@ -486,6 +489,12 @@
     <p class="field-help" id="port-help"></p>
     <input class="field-input" id="port-input" type="number" min="1024" max="65535" step="1" inputmode="numeric">
     <label class="field-check"><input type="checkbox" id="open-browser"> Open the browser when the dashboard starts</label>
+    <div class="field-sep"></div>
+    <label class="field-check"><input type="checkbox" id="archive-input"> Keep a copy of every session</label>
+    <p class="field-help" id="archive-help"></p>
+    <label class="field-label field-sub" for="archive-days">Keep copies for</label>
+    <p class="field-help field-sub" id="archive-days-help">Days after a session's last activity. Older copies are deleted. Leave empty to keep them forever.</p>
+    <input class="field-input field-sub" id="archive-days" type="number" min="1" max="36500" step="1" inputmode="numeric" placeholder="Forever" aria-describedby="archive-days-help">
     <div class="settings-actions">
       <button class="btn" type="button" id="settings-reset">Use default folder</button>
       <span class="spacer"></span>
@@ -528,6 +537,7 @@
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
     artifact: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>',
     pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
     alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   };
   const icon = (name, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -799,6 +809,9 @@
   }
 
   const isWorking = (s) => Boolean(s?.turnOpen) && Date.now() - Date.parse(s.lastActivity) < WORKING_MS;
+  function archivedChip(s) {
+    return s.archived ? `<span class="chip chip-archived" title="Claude Code deleted this session. claude-gui kept a copy, so you can still read, search and resume it.">${icon('archive', 12)}<span>Archived</span></span>` : '';
+  }
 
   function worktreeChip(s) {
     if (!s.worktrees.length) return '';
@@ -830,7 +843,7 @@
   function sessionRow(s, project) {
     const st = status(s.lastActivity);
     const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
-    const meta = branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + skillsChip(s) + costChip(s) + folder;
+    const meta = archivedChip(s) + branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + skillsChip(s) + costChip(s) + folder;
     return `
       <div class="row" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
         <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div>${lastLine(s)}</div></div>
@@ -1139,10 +1152,10 @@
     return `
       <div class="section${pinClass('resume')}" data-section="resume">
         <div class="section-title"><span>Resume</span>${pinButton('resume')}</div>
-        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} Resume in terminal</button>
+        <button class="btn-resume primary" type="button" data-resume-project="${esc(state.projectId)}" data-resume-session="${esc(s.id)}">${icon('terminal', 14)} ${s.archived ? 'Restore and resume' : 'Resume in terminal'}</button>
         <button class="btn-resume secondary" type="button" data-action="open-editor">${icon('code', 14)} Open in ${esc(editorLabel())}</button>
         <div class="cmd"><span class="prompt">$ </span>${esc(resumeCommand(s))}<button class="icon-btn sm" type="button" data-copy="${esc(resumeCommand(s))}" data-label="Resume command" title="Copy resume command" aria-label="Copy resume command">${icon('copy', 14)}</button></div>
-        <div class="hint">Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.</div>
+        <div class="hint">${s.archived ? 'Claude Code deleted this session from its folder. claude-gui kept a copy: resuming puts it back, then opens it in a new terminal window.' : 'Opens a new terminal window that picks up where this session stopped. You can also paste the command yourself.'}</div>
       </div>
       <div class="section${pinClass('details')}" data-section="details">
         <div class="section-title"><span>Details</span>${pinButton('details')}</div>
@@ -1205,7 +1218,7 @@
     return `
       <div class="session-head">
         <h1 title="${esc(s.title)}">${esc(s.title)}</h1>
-        <div class="s-meta">${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
+        <div class="s-meta">${archivedChip(s)}${isWorking(s) ? '<span class="pill active"><span class="dot active"></span>Claude is working</span>' : `<span class="pill ${st}"><span class="dot ${st}"></span>${st === 'idle' ? 'Idle for' : `${STATUS_LABEL[st]} · idle`}&nbsp;<span data-since="${esc(s.lastActivity)}">${esc(since(s.lastActivity))}</span></span>`}${branchChip(s)}${worktreeChip(s)}${s.prs.map(prChip).join('')}${artifactChip(s)}${costChip(s)}</div>
       </div>
       <div class="session-layout">
         <section class="chat-card" aria-label="Conversation">${renderChat()}<button class="jump" type="button" data-action="latest" hidden>${icon('arrow', 14)} Latest</button></section>
@@ -1342,6 +1355,10 @@
   const editorSelect = $('editor-select');
   const portInput = $('port-input');
   const openBrowserInput = $('open-browser');
+  const archiveInput = $('archive-input');
+  const archiveDaysInput = $('archive-days');
+  archiveInput.addEventListener('change', () => { archiveDaysInput.disabled = !archiveInput.checked; });
+
   const editorLabel = () => state.settings?.editors.find((editor) => editor.id === state.settings.editor)?.label ?? 'editor';
 
   function fillSettings(settings) {
@@ -1351,6 +1368,13 @@
     portInput.value = settings.port ?? '';
     portInput.placeholder = String(settings.defaultPort);
     openBrowserInput.checked = settings.openBrowser;
+    archiveInput.checked = settings.archive;
+    archiveInput.disabled = !settings.archiveDir;
+    archiveDaysInput.value = settings.archiveDays ?? '';
+    archiveDaysInput.disabled = !settings.archive;
+    $('archive-help').innerHTML = settings.archiveDir
+      ? `Claude Code deletes sessions after 30 days by default. claude-gui keeps a compressed copy in <code>${esc(tilde(settings.archiveDir))}</code>, readable only by you, so you can still search and resume them.`
+      : 'Not available in this mode.';
     const nextPort = settings.port ?? settings.defaultPort;
     $('port-help').textContent = `Leave empty to use ${settings.defaultPort}. Changes apply the next time you start the dashboard${nextPort === settings.runningPort ? '' : `; it's running on ${settings.runningPort} right now`}.`;
     const note = settings.source === 'flag' ? ' Saving here replaces it until you start the dashboard with the flag again.' : '';
@@ -1375,6 +1399,9 @@
     if (claudeDirInput.value.trim() !== tilde(state.settings?.claudeDir ?? '')) changes.claudeDir = claudeDirInput.value;
     if (editorSelect.value !== state.settings?.editor) changes.editor = editorSelect.value;
     if (openBrowserInput.checked !== state.settings?.openBrowser) changes.openBrowser = openBrowserInput.checked;
+    if (!archiveInput.disabled && archiveInput.checked !== state.settings?.archive) changes.archive = archiveInput.checked;
+    const archiveDays = archiveDaysInput.value.trim() === '' ? null : Number(archiveDaysInput.value);
+    if (!archiveDaysInput.disabled && archiveDays !== (state.settings?.archiveDays ?? null)) changes.archiveDays = archiveDays;
     const port = portInput.value.trim() === '' ? null : Number(portInput.value);
     if (port !== (state.settings?.port ?? null)) changes.port = port;
     return changes;
@@ -1398,7 +1425,9 @@
       settingsDialog.close();
       if (!folderChanged) {
         showToast('Settings saved');
-        return renderContent();
+        renderContent();
+        if ('archive' in changes || 'archiveDays' in changes) await refresh();
+        return;
       }
       showToast(`Now reading ${tilde(body.projectsDir)}`);
       Object.assign(state, { projects: null, recent: null, sessions: null, messages: null, search: null });
@@ -1408,7 +1437,8 @@
     } catch (error) {
       settingsError.textContent = error.message;
       settingsError.hidden = false;
-      claudeDirInput.focus();
+      if (!('claudeDir' in changes)) settingsError.scrollIntoView({ block: 'nearest' });
+      else claudeDirInput.focus();
     } finally {
       buttons.forEach((button) => { button.disabled = false; });
     }
@@ -1426,6 +1456,7 @@
     state.settings = settings;
     if (state.sessionId) renderContent();
   }).catch(() => {});
+
 
   async function openInEditor(path, button) {
     button.disabled = true;
@@ -1548,7 +1579,8 @@
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || response.statusText);
-      showToast('Opened in a new terminal window');
+      showToast(body.restored ? 'Restored the session and opened it in a new terminal window' : 'Opened in a new terminal window');
+      if (body.restored) refresh();
     } catch (error) {
       showToast(`Could not open a terminal: ${error.message}`, true);
     } finally {

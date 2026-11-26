@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { join } from 'node:path';
+import { archivePath } from '../src/archive.js';
 import { configPath, readConfig, resolveClaudeDir, startupOptions } from '../src/config.js';
 import { createServer } from '../src/server.js';
 
@@ -34,7 +35,9 @@ if (!['terminal', 'iterm'].includes(values.terminal)) {
 }
 
 const { claudeDir, source } = resolveClaudeDir({ flag: values['claude-dir'], saved: config.claudeDir });
-const server = createServer({ claudeDir, source, configFile, editor: config.editor, terminal: values.terminal });
+const archiveDir = archivePath();
+const archive = config.archive !== false;
+const server = createServer({ claudeDir, source, configFile, editor: config.editor, terminal: values.terminal, archiveDir, archive, archiveDays: config.archiveDays });
 
 server.on('error', (error) => {
   console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Try --port <another port>.` : error.message);
@@ -45,6 +48,9 @@ server.listen(port, '127.0.0.1', () => {
   const url = `http://127.0.0.1:${server.address().port}`;
   console.log(`claude-gui is running at ${url}`);
   console.log(`Reading ${join(claudeDir, 'projects')}`);
+  if (archive) {
+    console.log(`Keeping a copy of every session in ${archiveDir} (turn this off in Settings)`);
+  }
   if (shouldOpen) {
     openBrowser(url);
   }

@@ -73,6 +73,7 @@ describe('parseSession', () => {
       lastPrompt: 'Fix the login bug please',
       lastReply: null,
       turnOpen: false,
+      archived: false,
       lastActivity: '2026-11-20T11:31:00.000Z',
     });
   });
@@ -415,7 +416,7 @@ describe('searchSessions', () => {
   });
 
   it('caps the number of results', async () => {
-    const { results, total, truncated } = await searchSessions(searchRoot, 'sync', 2);
+    const { results, total, truncated } = await searchSessions(searchRoot, 'sync', { limit: 2 });
 
     assert.equal(results.length, 2);
     assert.equal(total, 3);
@@ -478,6 +479,7 @@ describe('server', () => {
     assert.ok(response.results.some((result) => result.sessionId === SESSION_ID && result.kind === 'user'));
     assert.equal(JSON.parse((await get('/api/search')).body).total, 0);
   });
+
 
   it('serves recently active sessions and clamps the window', async () => {
     const response = await get('/api/recent?hours=99999');

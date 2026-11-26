@@ -3,6 +3,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { createGunzip } from 'node:zlib';
 import { summarizeUsage } from './pricing.js';
 
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
@@ -21,6 +22,8 @@ const ARTIFACT_RANK = { viewed: 0, updated: 1, created: 2 };
 const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 const SKILL_LOAD = /^Base directory for this skill: (\S+)/;
 const COMMAND_NAME = /<command-name>\/?([^<\s]+)<\/command-name>/;
+const LIVE_SUFFIX = '.jsonl';
+const ARCHIVE_SUFFIX = '.jsonl.gz';
 
 const cache = new Map();
 
@@ -28,9 +31,9 @@ export function projectsRoot(env = process.env) {
   return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
 }
 
-export async function listProjects(root) {
-  const projects = await Promise.all((await projectDirs(root)).map(async (id) => {
-    const files = await sessionFiles(join(root, id));
+export async function listProjects(root, { archive = null } = {}) {
+  const projects = await Promise.all((await projectIds(root, archive)).map(async (id) => {
+    const files = await sessionFiles(root, id, archive);
     if (files.length === 0) {
       return null;
     }
@@ -52,11 +55,11 @@ export async function listProjects(root) {
     .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
-export async function listSessions(root, id) {
-  if (!(await projectDirs(root)).includes(id)) {
+export async function listSessions(root, id, { archive = null } = {}) {
+  if (!(await projectIds(root, archive)).includes(id)) {
     return null;
   }
-  const files = await sessionFiles(join(root, id));
+  const files = await sessionFiles(root, id, archive);
   const sessions = [];
   for (let i = 0; i < files.length; i += PARALLEL_FILES) {
     const batch = await Promise.allSettled(files.slice(i, i + PARALLEL_FILES).map((file) => parseSession(file.path)));
@@ -66,11 +69,11 @@ export async function listSessions(root, id) {
   return sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 }
 
-export async function listRecent(root, hours, now = Date.now()) {
+export async function listRecent(root, hours, now = Date.now(), { archive = null } = {}) {
   const since = new Date(now - hours * 3600000).toISOString();
   const recent = [];
-  for (const project of (await listProjects(root)).filter((p) => p.lastActivity >= since)) {
-    for (const session of (await listSessions(root, project.id)) ?? []) {
+  for (const project of (await listProjects(root, { archive })).filter((p) => p.lastActivity >= since)) {
+    for (const session of (await listSessions(root, project.id, { archive })) ?? []) {
       if (session.lastActivity >= since) {
         recent.push({ ...session, projectId: project.id, projectPath: project.path });
       }
@@ -108,7 +111,7 @@ export async function parseSession(file) {
   const skills = new Map();
   let lastCommand = null;
 
-  for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
+  for await (const line of readLines(file)) {
     let event;
     try {
       event = JSON.parse(line);
@@ -229,7 +232,7 @@ export async function parseSession(file) {
   }
 
   const session = {
-    id: basename(file, '.jsonl'),
+    id: sessionIdOf(file),
     title: title ?? slugTitle ?? truncate(firstPrompt) ?? 'Untitled session',
     cwd,
     gitBranch,
@@ -243,6 +246,7 @@ export async function parseSession(file) {
     lastPrompt,
     lastReply,
     turnOpen,
+    archived: file.endsWith(ARCHIVE_SUFFIX),
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
   };
   cache.set(file, { size: info.size, mtimeMs: info.mtimeMs, session });
@@ -256,23 +260,58 @@ async function projectDirs(root) {
   return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
-async function sessionFiles(dir) {
+async function projectIds(root, archive) {
+  const live = await projectDirs(root);
+
+  return archive ? [...new Set([...live, ...(await projectDirs(archive))])] : live;
+}
+
+// A project's session files: live transcripts first, plus archived copies of sessions Claude Code has deleted.
+async function sessionFiles(root, id, archive) {
+  const live = await filesIn(join(root, id), LIVE_SUFFIX);
+  if (!archive) {
+    return live;
+  }
+  const liveIds = new Set(live.map((file) => file.id));
+  const archived = (await filesIn(join(archive, id), ARCHIVE_SUFFIX)).filter((file) => !liveIds.has(file.id));
+
+  return [...live, ...archived].sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+async function filesIn(dir, suffix) {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const files = await Promise.all(entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(suffix))
     .map(async (entry) => {
       const path = join(dir, entry.name);
       const info = await stat(path).catch(() => null);
-      return info && { path, mtimeMs: info.mtimeMs };
+      return info && { path, id: entry.name.slice(0, -suffix.length), mtimeMs: info.mtimeMs };
     }));
 
   return files.filter(Boolean).sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
+function sessionIdOf(file) {
+  const name = basename(file);
+
+  return name.endsWith(ARCHIVE_SUFFIX) ? name.slice(0, -ARCHIVE_SUFFIX.length) : basename(name, LIVE_SUFFIX);
+}
+
+// Reads a transcript line by line, decompressing archived copies. A read error ends the file early instead of failing it.
+function readLines(file) {
+  const input = createReadStream(file);
+  const source = file.endsWith('.gz') ? input.pipe(createGunzip()) : input;
+  const lines = createInterface({ input: source, crlfDelay: Infinity });
+  input.on('error', () => lines.close());
+  source.on('error', () => lines.close());
+
+  return lines;
+}
+
 async function firstCwd(files) {
   for (const file of files) {
     try {
-      for await (const line of createInterface({ input: createReadStream(file.path), crlfDelay: Infinity })) {
+      for await (const line of readLines(file.path)) {
         const cwd = line.includes('"cwd"') && safeParse(line)?.cwd;
         if (cwd) {
           return cwd;
@@ -382,46 +421,52 @@ const SEARCH_LIMIT = 200;
 const SEARCH_TERMS = 10;
 const SEARCHABLE = new Set(['user', 'assistant', 'command']);
 
-export async function readConversation(root, projectId, sessionId) {
-  const file = await sessionPath(root, projectId, sessionId);
+export async function readConversation(root, projectId, sessionId, { archive = null } = {}) {
+  const file = await sessionPath(root, projectId, sessionId, archive);
 
   return file ? parseConversation(file) : null;
 }
 
-export async function findSession(root, projectId, sessionId) {
-  const file = await sessionPath(root, projectId, sessionId);
+export async function findSession(root, projectId, sessionId, { archive = null } = {}) {
+  const file = await sessionPath(root, projectId, sessionId, archive);
 
   return file ? parseSession(file) : null;
 }
 
-async function sessionPath(root, projectId, sessionId) {
-  if (!(await projectDirs(root)).includes(projectId)) {
+// Only names that exist on disk are returned, so request values can never point outside these folders.
+export async function sessionPath(root, projectId, sessionId, archive = null) {
+  if (!(await projectIds(root, archive)).includes(projectId)) {
     return null;
   }
-  const dir = join(root, projectId);
-  const names = await readdir(dir).catch(() => []);
+  for (const [base, suffix] of [[root, LIVE_SUFFIX], ...(archive ? [[archive, ARCHIVE_SUFFIX]] : [])]) {
+    const names = await readdir(join(base, projectId)).catch(() => []);
+    if (names.includes(`${sessionId}${suffix}`)) {
+      return join(base, projectId, `${sessionId}${suffix}`);
+    }
+  }
 
-  return names.includes(`${sessionId}.jsonl`) ? join(dir, `${sessionId}.jsonl`) : null;
+  return null;
 }
 
-export async function searchSessions(root, query, limit = SEARCH_LIMIT) {
+export async function searchSessions(root, query, { limit = SEARCH_LIMIT, archive = null } = {}) {
   const terms = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, SEARCH_TERMS);
   const matches = [];
   let scanned = 0;
   if (!terms.length) {
     return { results: [], total: 0, scanned, truncated: false };
   }
-  for (const project of await listProjects(root)) {
-    const files = await sessionFiles(join(root, project.id));
+  const wanted = (text) => terms.every((term) => text.lower.includes(term));
+  for (const p of await listProjects(root, { archive })) {
+    const files = await sessionFiles(root, p.id, archive);
     for (let i = 0; i < files.length; i += PARALLEL_FILES) {
       const batch = await Promise.allSettled(files.slice(i, i + PARALLEL_FILES).map(async ({ path }) => ({ session: await parseSession(path), texts: await searchIndex(path) })));
       for (const result of batch.filter((r) => r.status === 'fulfilled')) {
         scanned++;
         const { session, texts } = result.value;
-        for (const text of texts.filter((t) => terms.every((term) => t.lower.includes(term)))) {
+        for (const text of texts.filter(wanted)) {
           matches.push({
-            projectId: project.id,
-            projectPath: project.path,
+            projectId: p.id,
+            projectPath: p.path,
             sessionId: session.id,
             title: session.title,
             kind: text.kind,
@@ -478,7 +523,7 @@ async function buildConversation(file) {
   let cwd = null;
   const tools = new Map();
 
-  for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
+  for await (const line of readLines(file)) {
     let event;
     try {
       event = JSON.parse(line);

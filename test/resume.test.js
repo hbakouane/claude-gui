@@ -89,7 +89,7 @@ describe('POST /api/resume', () => {
     const response = await post({ projectId: '-proj', sessionId: SESSION_ID });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { opened: true });
+    assert.deepEqual(response.body, { opened: true, restored: false });
     assert.equal(launched.length, 1);
     assert.equal(launched[0][0], 'osascript');
     assert.match(launched[0][1][1], new RegExp(`claude --resume ${SESSION_ID}`));
