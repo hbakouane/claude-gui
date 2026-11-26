@@ -169,6 +169,8 @@
   .btn-resume.primary { width: 100%; justify-content: center; height: 36px; margin-bottom: 10px; border-color: var(--accent); background: var(--accent); color: #fff; font-size: 13px; }
   .btn-resume.primary:hover { background: var(--accent-strong); color: #fff; }
   .btn-resume:disabled { opacity: .6; cursor: progress; }
+  .chip-skill { color: var(--violet); background: var(--violet-soft); border-color: transparent; font-weight: 500; }
+  .chip .who { font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
   .chip-cost { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--text); }
   .stat.static { cursor: default; }
   .stat.static:hover { border-color: var(--border); }
@@ -435,6 +437,7 @@
     arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
     list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+    skill: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
     sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
     file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
     wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
@@ -531,7 +534,7 @@
     const haystack = text.toLowerCase();
     return query.toLowerCase().split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
   }
-  const sessionText = (s) => [s.title, s.gitBranch, s.id, s.cwd, ...s.prs.map((pr) => `${pr.repository} #${pr.number} ${pr.url}`), ...s.mcps.map(mcpName), ...s.worktrees.map((w) => w.path), ...s.artifacts.map((a) => a.name), s.lastPrompt, s.lastReply].join(' ');
+  const sessionText = (s) => [s.title, s.gitBranch, s.id, s.cwd, ...s.prs.map((pr) => `${pr.repository} #${pr.number} ${pr.url}`), ...s.mcps.map(mcpName), ...s.worktrees.map((w) => w.path), ...s.artifacts.map((a) => a.name), ...(s.skills ?? []).map((k) => `/${k.name}`), s.lastPrompt, s.lastReply].join(' ');
   const projectText = (p) => `${p.path} ${baseName(p.path)}`;
 
   const currentProject = () => state.projects?.find((p) => p.id === state.projectId);
@@ -672,6 +675,11 @@
     return parts.length ? `<div class="s-last">${parts.map(([who, text]) => `<span title="${esc(`${who}: ${text}`)}"><b>${who}:</b> ${esc(text)}</span>`).join('')}</div>` : '';
   }
 
+  function skillsChip(s) {
+    if (!s.skills?.length) return '';
+    return `<span class="chip chip-skill" title="${esc(s.skills.map((k) => `/${k.name}`).join('\n'))}">${icon('skill', 12)}<span>${s.skills.length === 1 ? `/${esc(s.skills[0].name)}` : plural(s.skills.length, 'skill')}</span></span>`;
+  }
+
   function costChip(s) {
     const u = s.usage;
     if (!u || !(u.input + u.output + u.cacheRead + u.cacheWrite)) return '';
@@ -682,7 +690,7 @@
   function sessionRow(s, project) {
     const st = status(s.lastActivity);
     const folder = s.cwd && project && s.cwd !== project.path ? `<span class="chip" title="${esc(s.cwd)}">${icon('folder', 12)}<span>${esc(tilde(s.cwd))}</span></span>` : '';
-    const meta = branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + costChip(s) + folder;
+    const meta = branchChip(s) + worktreeChip(s) + s.prs.map(prChip).join('') + artifactChip(s) + skillsChip(s) + costChip(s) + folder;
     return `
       <div class="row" tabindex="0" role="button" data-nav data-key="${esc(s.id)}" data-session="${esc(s.id)}" aria-label="${esc(s.title)}">
         <div class="c-session"><span class="dot ${st}" title="${STATUS_LABEL[st]}"></span><div class="s-main"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div><div class="s-meta">${meta || '<span class="muted">No git branch</span>'}</div>${lastLine(s)}</div></div>
@@ -981,6 +989,10 @@
       <div class="section">
         <div class="section-title"><span>Git worktrees</span><span>${s.worktrees.length}</span></div>
         ${s.worktrees.length ? `<div class="list">${s.worktrees.map((w) => `<div class="list-item"><span class="pr-icon" style="color:var(--blue)">${icon('layers', 16)}</span><span class="grow"><span class="mono" title="${esc(w.path)}">${esc(tilde(w.path))}</span><div class="muted" style="font-size:12px">${w.exists ? 'Still on disk' : 'Removed'}</div></span>${w.exists ? copyBtn(w.path, 'Worktree path') : ''}</div>`).join('')}</div>` : '<div class="none">This session did not create or enter a git worktree.</div>'}
+      </div>
+      <div class="section">
+        <div class="section-title"><span>Skills used</span><span>${(s.skills ?? []).length}</span></div>
+        ${s.skills?.length ? `<div class="chips">${s.skills.map((k) => `<span class="chip chip-skill" title="${esc(`Started by ${k.by.map((who) => (who === 'you' ? 'you' : 'Claude')).join(' and ')}${k.uses > 1 ? `, ${k.uses} times` : ''}`)}">${icon('skill', 12)}<span>/${esc(k.name)}${k.uses > 1 ? ` ×${k.uses}` : ''}</span>${k.by.includes('you') ? '<span class="who">you</span>' : ''}</span>`).join('')}</div><div class="hint">Skills marked “you” were typed as slash commands; the rest were loaded by Claude.</div>` : '<div class="none">No skills were used in this session.</div>'}
       </div>
       <div class="section">
         <div class="section-title"><span>MCP servers used</span><span>${s.mcps.length}</span></div>
