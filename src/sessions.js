@@ -154,13 +154,13 @@ export async function parseSession(file) {
     if (event.type === 'user' && !event.isMeta && !event.isSidechain) {
       const prompt = promptText(event.message?.content);
       if (prompt && !prompt.startsWith('[Request interrupted')) {
-        lastPrompt = truncate(prompt, PREVIEW_LENGTH);
+        lastPrompt = truncate(plainText(prompt), PREVIEW_LENGTH);
       }
     }
     if (event.type === 'assistant' && !event.isSidechain && Array.isArray(event.message?.content)) {
       const reply = event.message.content.findLast((block) => block?.type === 'text' && block.text?.trim())?.text;
       if (reply) {
-        lastReply = truncate(reply, PREVIEW_LENGTH);
+        lastReply = truncate(plainText(reply), PREVIEW_LENGTH);
       }
     }
   }
@@ -278,6 +278,15 @@ function promptText(content, raw = false) {
   const trimmed = text?.trim();
 
   return trimmed && (raw || !trimmed.startsWith('<')) ? trimmed : null;
+}
+
+function plainText(text) {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
+    .replace(/<\/?pasted_content[^>]*>/g, ' ')
+    .replace(/```[^\n]*/g, ' ')
+    .replace(/\*\*|`/g, '')
+    .replace(/^\s*#{1,6}\s+/gm, '');
 }
 
 function truncate(text, limit = TITLE_LENGTH) {

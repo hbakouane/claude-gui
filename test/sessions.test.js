@@ -124,6 +124,18 @@ describe('parseSession', () => {
     assert.equal(lastReply, 'Final answer');
   });
 
+  it('strips markdown and paste wrappers from the previews', async () => {
+    const file = await writeSession('-previews', 'markdown', lines(
+      { type: 'user', message: { content: 'Look at this:\n<pasted_content id="ab12">\nerror log\n</pasted_content id="ab12">' } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: '## Result\n**Fixed** the `parse_tenant` bug:\n```php\n$a = 1;\n```' }] } },
+    ));
+
+    const { lastPrompt, lastReply } = await parseSession(file);
+
+    assert.equal(lastPrompt, 'Look at this: error log');
+    assert.equal(lastReply, 'Result Fixed the parse_tenant bug: $a = 1;');
+  });
+
   it('uses a placeholder title and the file time when the session has neither', async () => {
     const file = await writeSession('-titles', 'empty', lines({ type: 'mode', mode: 'normal' }));
 
