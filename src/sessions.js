@@ -1,7 +1,7 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const TEMP_PATH = /^\/(private\/)?(var\/folders|tmp)\//;
@@ -9,6 +9,9 @@ const MCP_TOOL = /^mcp__(.+?)__/;
 const TASK_SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
 const TITLE_LENGTH = 80;
 const PARALLEL_FILES = 8;
+const WORKTREE_ADD = /(?:^|[;&|(\n]|\$\()\s*git\s+(?:-C\s+\S+\s+)?worktree\s+add\b([^;&|\n]*)/g;
+const SHELL_ASSIGNMENT = /(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_]\w*)=("[^"]*"|'[^']*'|[^\s;&|)]+)/g;
+const PLAIN_PATH = /^[\w@%+=:,./~-]+$/;
 
 const cache = new Map();
 
@@ -66,10 +69,10 @@ export async function parseSession(file) {
   let firstPrompt = null;
   let cwd = null;
   let gitBranch = null;
-  let isWorktree = false;
   let lastTimestamp = 0;
   const prs = new Map();
   const mcps = new Set();
+  const worktrees = new Set();
 
   for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
     let event;
@@ -99,14 +102,23 @@ export async function parseSession(file) {
     if (event.type === 'pr-link' && event.prUrl) {
       prs.set(event.prUrl, { url: event.prUrl, number: event.prNumber ?? null, repository: event.prRepository ?? null });
     }
-    if (event.attachment?.type === 'environment') {
-      isWorktree = event.attachment.snapshot?.isWorktree === true;
+    if (event.attachment?.type === 'environment' && event.attachment.snapshot?.isWorktree === true) {
+      worktrees.add(event.attachment.snapshot.workingDirectory ?? cwd);
     }
     if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
       for (const block of event.message.content) {
-        const match = block?.type === 'tool_use' && MCP_TOOL.exec(block.name);
+        if (block?.type !== 'tool_use') {
+          continue;
+        }
+        const match = MCP_TOOL.exec(block.name);
         if (match) {
           mcps.add(match[1]);
+        }
+        if (block.name === 'Bash') {
+          worktreeTargets(String(block.input?.command ?? ''), event.cwd ?? cwd).forEach((path) => worktrees.add(path));
+        }
+        if (block.name === 'EnterWorktree' && (block.input?.path || block.input?.name)) {
+          worktrees.add(resolve(event.cwd ?? cwd ?? '/', block.input.path ?? join('.claude', 'worktrees', block.input.name)));
         }
       }
     }
@@ -120,7 +132,7 @@ export async function parseSession(file) {
     title: title ?? slugTitle ?? truncate(firstPrompt) ?? 'Untitled session',
     cwd,
     gitBranch,
-    isWorktree,
+    worktrees: [...worktrees].map((path) => ({ path, exists: existsSync(path) })),
     prs: [...prs.values()],
     mcps: [...mcps].sort((a, b) => a.localeCompare(b)),
     lastActivity: new Date(lastTimestamp || info.mtimeMs).toISOString(),
@@ -164,6 +176,37 @@ async function firstCwd(files) {
   }
 
   return null;
+}
+
+function worktreeTargets(command, cwd) {
+  const vars = new Map([['HOME', homedir()], ['PWD', cwd ?? '']]);
+  for (const [, name, value] of command.matchAll(SHELL_ASSIGNMENT)) {
+    vars.set(name, unquote(value));
+  }
+  const targets = [];
+  for (const [, args] of command.matchAll(WORKTREE_ADD)) {
+    const words = args.trim().split(/\s+/).filter(Boolean);
+    for (let i = 0; i < words.length; i++) {
+      if (['-b', '-B', '--reason'].includes(words[i])) {
+        i++;
+        continue;
+      }
+      if (words[i].startsWith('-')) {
+        continue;
+      }
+      const path = unquote(words[i]).replace(/\$\{?(\w+)\}?/g, (ref, name) => vars.get(name) ?? ref).replace(/^~(?=\/|$)/, homedir());
+      if (PLAIN_PATH.test(path)) {
+        targets.push(resolve(cwd ?? '/', path));
+      }
+      break;
+    }
+  }
+
+  return targets;
+}
+
+function unquote(word) {
+  return word.replace(/^(["'])(.*)\1$/, '$2');
 }
 
 function promptText(content) {

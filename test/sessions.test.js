@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createServer } from '../src/server.js';
@@ -28,6 +28,7 @@ const fullSession = lines(
   { type: 'pr-link', prUrl: 'https://github.com/acme/app/pull/7', prNumber: 7, prRepository: 'acme/app', timestamp: '2026-11-20T11:31:00.000Z' },
   { type: 'ai-title', aiTitle: 'Fix login bug' },
   { type: 'ai-title', aiTitle: 'verify-login-fix-prod' },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command: 'WT=../app-fix && git worktree add -b fix/login "$WT" origin/main 2>&1 | tail -2' } }] }, cwd: '/Users/me/code/app' },
 );
 
 let root;
@@ -56,7 +57,10 @@ describe('parseSession', () => {
       title: 'Fix login bug',
       cwd: '/Users/me/code/app',
       gitBranch: 'fix/login',
-      isWorktree: true,
+      worktrees: [
+        { path: '/Users/me/code/app', exists: false },
+        { path: '/Users/me/code/app-fix', exists: false },
+      ],
       prs: [{ url: 'https://github.com/acme/app/pull/7', number: 7, repository: 'acme/app' }],
       mcps: ['claude_ai_Linear', 'supabase'],
       lastActivity: '2026-11-20T11:31:00.000Z',
@@ -70,12 +74,12 @@ describe('parseSession', () => {
       { type: 'user', message: { content: longPrompt }, timestamp: '2026-11-20T10:00:01.000Z' },
     ));
 
-    const { title, isWorktree, prs, mcps } = await parseSession(file);
+    const { title, worktrees, prs, mcps } = await parseSession(file);
 
     assert.equal(title.length, 80);
     assert.ok(title.startsWith('Investigate why the nightly sync'));
     assert.ok(title.endsWith('…'));
-    assert.equal(isWorktree, false);
+    assert.deepEqual(worktrees, []);
     assert.deepEqual(prs, []);
     assert.deepEqual(mcps, []);
   });
@@ -118,6 +122,39 @@ describe('parseSession', () => {
     const changed = await parseSession(file);
     assert.notEqual(changed, first);
     assert.equal(changed.title, 'Renamed');
+  });
+});
+
+describe('worktrees', () => {
+  const bash = (command) => ({ type: 'assistant', cwd: '/repo/app', message: { content: [{ type: 'tool_use', id: command, name: 'Bash', input: { command } }] } });
+
+  it('finds worktrees made with git worktree add or the EnterWorktree tool', async () => {
+    const existing = await mkdtemp(join(tmpdir(), 'csd-wt-'));
+    try {
+      const file = await writeSession('-wt', 'wt', lines(
+        { type: 'user', cwd: '/repo/app', message: { content: 'go' } },
+        bash('git worktree add --detach ../app-detached HEAD'),
+        bash(`git worktree add -q -b feat/x "${existing}" origin/main`),
+        bash('SP=/nonexistent/sp && git worktree add -q --detach $SP FETCH_HEAD'),
+        bash('git worktree add ~/wt/home-one'),
+        bash('git worktree add "$SET_IN_AN_EARLIER_COMMAND" main'),
+        bash("grep -o 'git worktree add [^\"]*' notes.txt"),
+        bash('echo "made with git worktree add or the tool" && cat <<EOF\nthen run git worktree add later\nEOF'),
+        bash('cd /repo/app && git worktree add ../app-after-cd'),
+        { type: 'assistant', cwd: '/repo/app', message: { content: [{ type: 'tool_use', id: 'e1', name: 'EnterWorktree', input: { name: 'quick-fix' } }] } },
+      ));
+
+      assert.deepEqual((await parseSession(file)).worktrees, [
+        { path: '/repo/app-detached', exists: false },
+        { path: existing, exists: true },
+        { path: '/nonexistent/sp', exists: false },
+        { path: join(homedir(), 'wt/home-one'), exists: false },
+        { path: '/repo/app-after-cd', exists: false },
+        { path: '/repo/app/.claude/worktrees/quick-fix', exists: false },
+      ]);
+    } finally {
+      await rm(existing, { recursive: true, force: true });
+    }
   });
 });
 
