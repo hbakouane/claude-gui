@@ -426,8 +426,8 @@
 
   const $ = (id) => document.getElementById(id);
   const shell = $('shell'), main = $('main'), content = $('content'), nav = $('nav'), search = $('search'), toast = $('toast');
-  const state = { projects: null, projectsError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: true };
-  try { state.showTools = localStorage.getItem('showTools') !== 'false'; } catch {}
+  const state = { projects: null, projectsError: null, sessions: null, sessionsError: null, messages: null, messagesError: null, projectId: null, sessionId: null, filter: 'all', updatedAt: 0, showTools: false };
+  try { state.showTools = localStorage.getItem('showTools') === 'true'; } catch {}
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tilde = (path) => String(path ?? '').replace(/^\/(Users|home)\/[^/]+/, '~');
