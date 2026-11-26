@@ -8,12 +8,13 @@ const { values } = parseArgs({
   options: {
     port: { type: 'string', default: '4321' },
     'no-open': { type: 'boolean', default: false },
+    terminal: { type: 'string', default: 'terminal' },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
 
 if (values.help) {
-  console.log('Usage: claude-sessions-dashboard [--port 4321] [--no-open]');
+  console.log('Usage: claude-sessions-dashboard [--port 4321] [--no-open] [--terminal terminal|iterm]');
   process.exit(0);
 }
 
@@ -23,8 +24,13 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
   process.exit(1);
 }
 
+if (!['terminal', 'iterm'].includes(values.terminal)) {
+  console.error(`Invalid --terminal: ${values.terminal}. Use terminal or iterm.`);
+  process.exit(1);
+}
+
 const root = projectsRoot();
-const server = createServer({ root });
+const server = createServer({ root, terminal: values.terminal });
 
 server.on('error', (error) => {
   console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Try --port <another port>.` : error.message);
