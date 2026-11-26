@@ -377,6 +377,10 @@ const TOOL_RESULT_LIMIT = 6000;
 const EDIT_TEXT_LIMIT = 12000;
 const SUMMARY_LENGTH = 160;
 const conversationCache = new Map();
+const searchCache = new Map();
+const SEARCH_LIMIT = 200;
+const SEARCH_TERMS = 10;
+const SEARCHABLE = new Set(['user', 'assistant', 'command']);
 
 export async function readConversation(root, projectId, sessionId) {
   const file = await sessionPath(root, projectId, sessionId);
@@ -400,13 +404,75 @@ async function sessionPath(root, projectId, sessionId) {
   return names.includes(`${sessionId}.jsonl`) ? join(dir, `${sessionId}.jsonl`) : null;
 }
 
+export async function searchSessions(root, query, limit = SEARCH_LIMIT) {
+  const terms = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, SEARCH_TERMS);
+  const matches = [];
+  let scanned = 0;
+  if (!terms.length) {
+    return { results: [], total: 0, scanned, truncated: false };
+  }
+  for (const project of await listProjects(root)) {
+    const files = await sessionFiles(join(root, project.id));
+    for (let i = 0; i < files.length; i += PARALLEL_FILES) {
+      const batch = await Promise.allSettled(files.slice(i, i + PARALLEL_FILES).map(async ({ path }) => ({ session: await parseSession(path), texts: await searchIndex(path) })));
+      for (const result of batch.filter((r) => r.status === 'fulfilled')) {
+        scanned++;
+        const { session, texts } = result.value;
+        for (const text of texts.filter((t) => terms.every((term) => t.lower.includes(term)))) {
+          matches.push({
+            projectId: project.id,
+            projectPath: project.path,
+            sessionId: session.id,
+            title: session.title,
+            kind: text.kind,
+            at: text.at,
+            index: text.index,
+            snippet: snippet(text.text, text.lower, terms[0]),
+          });
+        }
+      }
+    }
+  }
+  matches.sort((a, b) => String(b.at ?? '').localeCompare(String(a.at ?? '')));
+
+  return { results: matches.slice(0, limit), total: matches.length, scanned, truncated: matches.length > limit };
+}
+
+async function searchIndex(file) {
+  const info = await stat(file);
+  const cached = searchCache.get(file);
+  if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs) {
+    return cached.texts;
+  }
+  const conversation = conversationCache.get(file);
+  const items = conversation && conversation.size === info.size && conversation.mtimeMs === info.mtimeMs ? conversation.items : await buildConversation(file);
+  const texts = items.flatMap((item, index) => (SEARCHABLE.has(item.kind) && item.text ? [{ kind: item.kind, text: item.text, lower: item.text.toLowerCase(), at: item.at, index }] : []));
+  searchCache.set(file, { size: info.size, mtimeMs: info.mtimeMs, texts });
+
+  return texts;
+}
+
+function snippet(text, lower, term) {
+  const at = Math.max(0, lower.indexOf(term));
+  const start = Math.max(0, at - 80);
+  const end = Math.min(text.length, at + term.length + 140);
+
+  return `${start > 0 ? '…' : ''}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${end < text.length ? '…' : ''}`;
+}
+
 export async function parseConversation(file) {
   const info = await stat(file);
   const cached = conversationCache.get(file);
   if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs) {
     return cached.items;
   }
+  const items = await buildConversation(file);
+  conversationCache.set(file, { size: info.size, mtimeMs: info.mtimeMs, items });
 
+  return items;
+}
+
+async function buildConversation(file) {
   const items = [];
   let cwd = null;
   const tools = new Map();
@@ -471,8 +537,6 @@ export async function parseConversation(file) {
       items.push({ kind: 'user', text: parts.join('\n\n'), at });
     }
   }
-
-  conversationCache.set(file, { size: info.size, mtimeMs: info.mtimeMs, items });
 
   return items;
 }

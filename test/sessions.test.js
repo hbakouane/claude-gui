@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createServer } from '../src/server.js';
-import { listProjects, listRecent, listSessions, parseConversation, parseSession, projectsRoot, readConversation } from '../src/sessions.js';
+import { listProjects, listRecent, listSessions, parseConversation, parseSession, projectsRoot, readConversation, searchSessions } from '../src/sessions.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
 const PROJECT = '-Users-me-code-app';
@@ -360,6 +360,69 @@ describe('listRecent', () => {
   });
 });
 
+describe('searchSessions', () => {
+  let searchRoot;
+
+  before(async () => {
+    searchRoot = await mkdtemp(join(tmpdir(), 'csd-search-'));
+    const write = async (project, id, ...events) => {
+      await mkdir(join(searchRoot, project), { recursive: true });
+      await writeFile(join(searchRoot, project, `${id}.jsonl`), lines(...events));
+    };
+    await write('-Users-me-api', 'api', 
+      { type: 'user', cwd: '/Users/me/api', message: { content: 'Why is the SYNC so slow today?' }, timestamp: '2026-11-20T10:00:00.000Z' },
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Bash', input: { command: 'grep sync slow' } }] }, timestamp: '2026-11-20T10:00:01.000Z' },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'the sync is slow in the logs' }] }, timestamp: '2026-11-20T10:00:02.000Z' },
+      { type: 'assistant', message: { content: [{ type: 'text', text: `${'Context. '.repeat(30)}The sync is slow because the full customer call takes 176 seconds. ${'More. '.repeat(40)}` }] }, timestamp: '2026-11-20T10:00:03.000Z' },
+      { type: 'user', isMeta: true, message: { content: 'meta mentions sync slow' }, timestamp: '2026-11-20T10:00:04.000Z' },
+    );
+    await write('-Users-me-web', 'web',
+      { type: 'user', cwd: '/Users/me/web', message: { content: '<command-message>sync</command-message>\n<command-name>/sync</command-name>\n<command-args>slow mode</command-args>' }, timestamp: '2026-11-21T10:00:00.000Z' },
+      { type: 'user', message: { content: 'unrelated' }, timestamp: '2026-11-21T10:00:01.000Z' },
+    );
+  });
+
+  after(() => rm(searchRoot, { recursive: true, force: true }));
+
+  it('finds prompts, replies and commands containing every term, newest first', async () => {
+    const { results, total, scanned, truncated } = await searchSessions(searchRoot, 'sync  SLOW');
+
+    assert.equal(scanned, 2);
+    assert.equal(total, 3);
+    assert.equal(truncated, false);
+    assert.deepEqual(results.map(({ sessionId, projectId, kind }) => [sessionId, projectId, kind]), [
+      ['web', '-Users-me-web', 'command'],
+      ['api', '-Users-me-api', 'assistant'],
+      ['api', '-Users-me-api', 'user'],
+    ]);
+    assert.equal(results[0].projectPath, '/Users/me/web');
+  });
+
+  it('points each match at its message in the conversation', async () => {
+    const { results } = await searchSessions(searchRoot, 'customer call');
+    const conversation = await parseConversation(join(searchRoot, '-Users-me-api', 'api.jsonl'));
+
+    assert.equal(results.length, 1);
+    assert.equal(conversation[results[0].index].kind, 'assistant');
+    assert.match(results[0].snippet, /^….*The sync is slow because the full customer call.*…$/);
+    assert.ok(results[0].snippet.length < 260);
+  });
+
+  it('skips tool output and hidden messages, and returns nothing for an empty query', async () => {
+    assert.equal((await searchSessions(searchRoot, 'logs')).total, 0);
+    assert.equal((await searchSessions(searchRoot, 'meta mentions')).total, 0);
+    assert.deepEqual(await searchSessions(searchRoot, '   '), { results: [], total: 0, scanned: 0, truncated: false });
+  });
+
+  it('caps the number of results', async () => {
+    const { results, total, truncated } = await searchSessions(searchRoot, 'sync', 2);
+
+    assert.equal(results.length, 2);
+    assert.equal(total, 3);
+    assert.equal(truncated, true);
+  });
+});
+
 describe('projectsRoot', () => {
   it('respects CLAUDE_CONFIG_DIR', () => {
     assert.equal(projectsRoot({ CLAUDE_CONFIG_DIR: '/custom' }), '/custom/projects');
@@ -408,6 +471,12 @@ describe('server', () => {
     assert.equal((await get('/api/projects/..%2F..%2Fetc/sessions')).status, 404);
     assert.equal((await get('/api/projects/%E0%A4%A/sessions')).status, 404);
     assert.equal((await get('/secrets')).status, 404);
+  });
+
+  it('serves search results', async () => {
+    const response = JSON.parse((await get(`/api/search?q=${encodeURIComponent('login bug')}`)).body);
+    assert.ok(response.results.some((result) => result.sessionId === SESSION_ID && result.kind === 'user'));
+    assert.equal(JSON.parse((await get('/api/search')).body).total, 0);
   });
 
   it('serves recently active sessions and clamps the window', async () => {

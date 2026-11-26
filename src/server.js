@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { launch as spawnTerminal, terminalCommand } from './resume.js';
-import { findSession, listProjects, listRecent, listSessions, readConversation } from './sessions.js';
+import { findSession, listProjects, listRecent, listSessions, readConversation, searchSessions } from './sessions.js';
 
 const INDEX = new URL('../public/index.html', import.meta.url);
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -10,6 +10,7 @@ const SESSIONS_ROUTE = /^\/api\/projects\/([^/]+)\/sessions$/;
 const MESSAGES_ROUTE = /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/messages$/;
 const MAX_RECENT_HOURS = 168;
 const MAX_BODY_BYTES = 10_000;
+const MAX_QUERY_LENGTH = 200;
 export const RESUME_HEADER = 'claude-sessions-dashboard';
 
 export function createServer({ root, terminal = 'terminal', platform = process.platform, launch = spawnTerminal }) {
@@ -32,6 +33,9 @@ export function createServer({ root, terminal = 'terminal', platform = process.p
       if (pathname === '/api/recent') {
         const hours = Math.min(MAX_RECENT_HOURS, Math.max(1, Number(url.searchParams.get('hours')) || 24));
         return send(res, 200, await listRecent(root, hours));
+      }
+      if (pathname === '/api/search') {
+        return send(res, 200, await searchSessions(root, (url.searchParams.get('q') ?? '').slice(0, MAX_QUERY_LENGTH)));
       }
       if (pathname === '/api/resume') {
         return await resume(req, res, { root, terminal, platform, launch });
