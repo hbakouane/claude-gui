@@ -9,6 +9,7 @@
 A local dashboard for your [Claude Code](https://claude.com/claude-code) history. Search every conversation, see what each session changed and cost, and resume any of them in one click, even after your laptop crashes with five sessions open.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-d97757.svg)](LICENSE)
+[![npm downloads](https://img.shields.io/npm/dm/claude-gui.svg)](https://www.npmjs.com/package/claude-gui)
 ![Node 18.3+](https://img.shields.io/badge/node-%E2%89%A518.3-339933.svg)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-0-success.svg)
 ![Runs locally](https://img.shields.io/badge/runs-100%25%20locally-1c1917.svg)
